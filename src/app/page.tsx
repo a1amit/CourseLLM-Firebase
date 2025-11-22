@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GraduationCap, School } from 'lucide-react';
 import { CourseWiseLogo } from '@/components/icons';
+import { ChunkingDemoButton } from '@/components/chunking-demo-button';
 
 export default function Home() {
   return (
@@ -36,6 +37,7 @@ export default function Home() {
                 </Button>
               </Link>
             </div>
+           <ChunkingDemoButton />
           </CardContent>
         </Card>
       </div>

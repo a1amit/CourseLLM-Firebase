@@ -1,0 +1,15 @@
+[
+  "introduction.md",
+  "environment_setup.md",
+  "basic_syntax.md",
+  "variables_data_types.md",
+  "operators.md",
+  "conditional_statements.md",
+  "loops.md",
+  "functions.md",
+  "modules_packages.md",
+  "modules_packages.md",
+  "input_output.md",
+  "file_operations.md",
+  "error_handling.md"
+]
