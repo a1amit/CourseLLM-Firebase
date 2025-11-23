@@ -26,7 +26,8 @@ async function getCourseMaterials(courseId: string) {
 }
 
 export default async function ViewCourseMaterialsPage({ params }: { params: { courseId: string } }) {
-  const materials = await getCourseMaterials(params.courseId);
+  const { courseId } = await params;
+  const materials = await getCourseMaterials(courseId);
 
   if (!materials) {
     return (

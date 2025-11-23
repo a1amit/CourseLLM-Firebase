@@ -35,7 +35,7 @@ function LoadingOverlay({ elapsedTime }: { elapsedTime: number }) {
 export function CourseManagementClient({ course: initialCourse }: { course: Course }) {
   const [course, setCourse] = useState(initialCourse);
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [generatedModulesCount, setGeneratedModulesCount] = useState(0);
@@ -44,7 +44,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (isLoading) {
+    if (isGenerating) {
       timer = setInterval(() => {
         setElapsedTime(prevTime => prevTime + 0.1);
       }, 100);
@@ -52,7 +52,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
       setElapsedTime(0);
     }
     return () => clearInterval(timer);
-  }, [isLoading]);
+  }, [isGenerating]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -78,7 +78,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
         return;
     }
     
-    setIsLoading(true);
+    setIsGenerating(true);
 
     const filesPayload = await Promise.all(
         selectedFiles.map(async file => ({
@@ -107,7 +107,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
         variant: "destructive",
       });
     } finally {
-        setIsLoading(false);
+        setIsGenerating(false);
     }
   };
 
@@ -121,7 +121,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
 
   return (
     <>
-        {isLoading && <LoadingOverlay elapsedTime={elapsedTime} />}
+        {isGenerating && <LoadingOverlay elapsedTime={elapsedTime} />}
         <AlertDialog open={showSuccessAlert} onOpenChange={setShowSuccessAlert}>
             <AlertDialogContent>
                 <AlertDialogHeader>
@@ -165,7 +165,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
                     <p className="text-sm text-muted-foreground">
                         Upload your course materials (Markdown files only) and the AI will generate a structured learning path.
                     </p>
-                    <div
+                    <div 
                         className="border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
                         onClick={() => fileInputRef.current?.click()}
                     >
@@ -173,10 +173,10 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
                         <p className="mt-4 text-sm text-muted-foreground">
                             Click to browse or drag and drop files
                         </p>
-                        <Input
+                        <Input 
                             ref={fileInputRef}
-                            type="file"
-                            multiple
+                            type="file" 
+                            multiple 
                             className="hidden"
                             onChange={handleFileChange}
                             accept=".md"
@@ -200,7 +200,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
                             </ul>
                         </div>
                     )}
-                    <Button onClick={handleGenerateMaterials} disabled={isLoading || selectedFiles.length === 0}>
+                    <Button onClick={handleGenerateMaterials} disabled={isGenerating || selectedFiles.length === 0}>
                         <Rocket className="mr-2 h-4 w-4" /> Generate Course Materials
                     </Button>
                   </div>
@@ -220,7 +220,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
                       id="objectives"
                       placeholder="e.g., 1. Understand basic Python syntax..."
                       value={course.learningObjectives}
-                      onChange={(e) => setCourse(prev => ({...prev, learningObjectives: e.target.value}))}
+                      onChange={(e) => setCourse(prev => ({...prev!, learningObjectives: e.target.value}))}
                       rows={4}
                     />
                   </div>
@@ -230,7 +230,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
                       id="skills"
                       placeholder="e.g., Problem-solving, Algorithmic thinking"
                       value={course.learningSkills}
-                      onChange={(e) => setCourse(prev => ({...prev, learningSkills: e.target.value}))}
+                      onChange={(e) => setCourse(prev => ({...prev!, learningSkills: e.target.value}))}
                     />
                   </div>
                   <div className="space-y-2">
@@ -239,7 +239,7 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
                       id="trajectories"
                       placeholder="e.g., Beginner -> Intermediate"
                       value={course.learningTrajectories}
-                      onChange={(e) => setCourse(prev => ({...prev, learningTrajectories: e.target.value}))}
+                      onChange={(e) => setCourse(prev => ({...prev!, learningTrajectories: e.target.value}))}
                     />
                   </div>
                 </CardContent>

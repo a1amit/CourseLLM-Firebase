@@ -17,7 +17,8 @@ async function checkMaterialsExist(courseId: string) {
 }
 
 export default async function ManageCoursePage({ params }: { params: { courseId: string } }) {
-  const course = await getCourseById(params.courseId);
+  const { courseId } = await params;
+  const course = getCourseById(courseId);
 
   if (!course) {
     notFound();
