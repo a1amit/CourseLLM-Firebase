@@ -1,4 +1,5 @@
 import {NextRequest, NextResponse} from 'next/server';
+import { revalidatePath } from 'next/cache';
 import {chunkMaterialsFlow} from '@/ai/flows/chunk-materials';
 import {extractText} from '@/lib/text-extractor';
 
@@ -13,24 +14,29 @@ export async function POST(req: NextRequest) {
 
     let rawContent = '';
 
-    if (courseId) {
-      // In a real implementation, fetch file paths from the database using the courseId
-      // and then extract text from each file.
-      // For this example, we'll use mock data.
-      const mockFilePaths = ['path/to/mock.pdf', 'path/to/mock.docx'];
-      for (const path of mockFilePaths) {
-        // This is a simplified example. In a real scenario, you would fetch the file content.
-        const file = { path, content: Buffer.from('mock content').toString('base64') };
-        rawContent += await extractText(file) + '\n\n';
-      }
-    } else if (files) {
-      // Assuming 'files' is an array of objects with 'path' and 'content' (base64)
+    if (files) {
       for (const file of files) {
-        rawContent += await extractText(file) + '\n\n';
+        const text = await extractText(file);
+        // Pre-chunk the content by Markdown headings
+        const chunks = text.split(/(?=^#{1,6} )/m).filter(Boolean); // Split on lines starting with #, ##, etc.
+        rawContent += chunks.join('\n\n---\n\n'); // Join chunks with a clear separator
       }
     }
 
-    const result = await chunkMaterialsFlow({ files: [rawContent], clearExisting });
+    console.log("==================================");
+    console.log("CONTENT BEING SENT TO GENKIT FLOW:");
+    console.log(rawContent.substring(0, 500) + "..."); // Log the first 500 chars
+    console.log("==================================");
+
+    const result = await chunkMaterialsFlow({ files: [rawContent], courseId, clearExisting });
+
+    if (courseId) {
+        revalidatePath(`/student/courses/${courseId}`);
+        revalidatePath(`/student/materials/courses/${courseId}`);
+    } else {
+        // Revalidate the generic demo materials page
+        revalidatePath('/student/materials');
+    }
 
     return NextResponse.json(result);
   } catch (error) {

@@ -23,12 +23,25 @@ const ChunkMaterialsOutputSchema = z.object({
 });
 export type ChunkMaterialsOutput = z.infer<typeof ChunkMaterialsOutputSchema>;
 
-const chunkingPromptTemplate = `
+const chunkingPrompt = ai.definePrompt({
+    name: 'chunkingPrompt',
+    input: {
+        schema: z.object({
+            rawContent: z.string().describe('The combined raw text content from all source documents.'),
+        }),
+    },
+    output: {
+        format: 'json',
+        schema: ChunkMaterialsOutputSchema,
+    },
+    prompt: `
 **ROLE:**
 You are a World-Class Curriculum Architect and Technical Instructor. Your goal is to take a chaotic dump of information and restructure it into a linear, intuitive learning path.
 
 **INPUT:**
-You will be provided with raw course materials.
+You will be provided with the following raw course materials:
+
+{{rawContent}}
 
 **TASK:**
 1.  **Analyze & Deconstruct:** Read all materials. Identify distinct concepts, definitions, code examples, and theoretical explanations.
@@ -55,20 +68,7 @@ After the <plan> block, output the content in a VALID JSON format as follows:
     }
   ]
 }
-`;
-
-const chunkingPrompt = ai.definePrompt({
-    name: 'chunkingPrompt',
-    input: {
-        schema: z.object({
-            rawContent: z.string().describe('The combined raw text content from all source documents.'),
-        }),
-    },
-    output: {
-        format: 'json',
-        schema: ChunkMaterialsOutputSchema,
-    },
-    prompt: chunkingPromptTemplate,
+`,
 });
 
 
@@ -81,6 +81,11 @@ export const chunkMaterialsFlow = ai.defineFlow(
   async (input: ChunkMaterialsInput) => {
     const rawContent = input.files?.join('\n\n') || "No content provided";
 
+    console.log("**********************************");
+    console.log("CONTENT RECEIVED BY GENKIT FLOW:");
+    console.log(rawContent.substring(0, 500) + "..."); // Log the first 500 chars
+    console.log("**********************************");
+
     const { output } = await chunkingPrompt({ rawContent });
 
     if (!output) {
@@ -88,7 +93,8 @@ export const chunkMaterialsFlow = ai.defineFlow(
     }
 
     // Save the generated markdown files to storage.
-    const outputDir = path.join(process.cwd(), 'output', 'materials');
+    const baseDir = path.join(process.cwd(), 'output', 'materials');
+    const outputDir = input.courseId ? path.join(baseDir, input.courseId) : baseDir;
 
     if (input.clearExisting) {
         await fs.rm(outputDir, { recursive: true, force: true });

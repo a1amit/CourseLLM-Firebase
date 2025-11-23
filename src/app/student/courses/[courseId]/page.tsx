@@ -1,5 +1,7 @@
 import { getCourseById } from '@/lib/mock-data';
 import { notFound } from 'next/navigation';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import {
   Card,
   CardContent,
@@ -8,16 +10,29 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileText, Presentation } from 'lucide-react';
+import { FileText, Presentation, BookOpen } from 'lucide-react';
 import { ChatPanel } from './_components/chat-panel';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
-export default function CourseDetailPage({ params }: { params: { courseId: string } }) {
+async function checkMaterialsExist(courseId: string) {
+    const manifestPath = path.join(process.cwd(), 'output', 'materials', courseId, '_manifest.json');
+    try {
+        await fs.access(manifestPath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export default async function CourseDetailPage({ params }: { params: { courseId: string } }) {
   const course = getCourseById(params.courseId);
 
   if (!course) {
     notFound();
   }
   
+  const materialsExist = await checkMaterialsExist(course.id);
   const courseMaterialString = course.materials.map(m => `Title: ${m.title}\nContent: ${m.content}`).join('\n\n---\n\n');
 
   return (
@@ -26,9 +41,22 @@ export default function CourseDetailPage({ params }: { params: { courseId: strin
             <h1 className="text-3xl font-bold font-headline">{course.title}</h1>
             <p className="text-muted-foreground">{course.description}</p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-            <Card className="flex flex-col">
-                <CardHeader>
+        
+        {materialsExist ? (
+            <Link href={`/student/materials/courses/${course.id}`} passHref>
+                <Button variant="outline">
+                    <BookOpen className="mr-2 h-4 w-4" /> View AI-Generated Course
+                </Button>
+            </Link>
+        ) : (
+            <Button variant="outline" disabled>
+                <BookOpen className="mr-2 h-4 w-4" /> AI Materials Not Yet Generated
+            </Button>
+        )}
+
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+             <Card className="flex flex-col">
+                 <CardHeader>
                     <CardTitle>Course Materials</CardTitle>
                     <CardDescription>Review the materials for this course.</CardDescription>
                 </CardHeader>

@@ -1,15 +1,7 @@
 [
-  "introduction.md",
-  "environment_setup.md",
-  "basic_syntax.md",
-  "variables_data_types.md",
-  "operators.md",
-  "conditional_statements.md",
-  "loops.md",
-  "functions.md",
-  "modules_packages.md",
-  "modules_packages.md",
-  "input_output.md",
-  "file_operations.md",
-  "error_handling.md"
+  "01_introduction_to_tokenization.md",
+  "02_how_tokenizers_work.md",
+  "03_the_power_of_subword_tokenization.md",
+  "04_byte_pair_encoding.md",
+  "05_further_exploration_and_resources.md"
 ]
