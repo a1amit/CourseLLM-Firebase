@@ -1,8 +1,8 @@
 [
-  "introduction_to_tokenization.md",
-  "the_need_for_tokenization.md",
-  "how_tokenizers_work.md",
-  "subword_tokenization_necessity.md",
-  "byte_pair_encoding_bpe.md",
-  "conclusion_and_resources.md"
+  "introduction.md",
+  "rag_architecture.md",
+  "rag_components.md",
+  "rag_applications.md",
+  "advanced_rag_topics.md",
+  "rag_limitations_and_risks.md"
 ]
