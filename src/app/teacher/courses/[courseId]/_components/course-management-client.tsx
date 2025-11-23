@@ -132,8 +132,8 @@ export function CourseManagementClient({ course: initialCourse }: { course: Cour
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogAction onClick={() => setShowSuccessAlert(false)}>OK</AlertDialogAction>
-                    <a href={`/student/materials/courses/${course.id}`} target="_blank" rel="noopener noreferrer">
-                        <AlertDialogAction>View Materials</AlertDialogAction>
+                    <a href={`/materials/${course.id}`} target="_blank" rel="noopener noreferrer">
+                        <Button>View Materials</Button>
                     </a>
                 </AlertDialogFooter>
             </AlertDialogContent>

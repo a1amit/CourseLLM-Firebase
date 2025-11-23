@@ -1,8 +1,8 @@
 [
-  "01_introduction_to_tokenization.md",
-  "02_why_llms_need_tokenization.md",
-  "03_how_tokenizers_work.md",
-  "04_the_power_of_subword_tokenization.md",
-  "05_byte_pair_encoding_bpe.md",
-  "06_summary_and_resources.md"
+  "introduction_to_tokenization.md",
+  "why_tokenization_matters.md",
+  "how_tokenizers_work.md",
+  "the_power_of_subword_tokenization.md",
+  "byte_pair_encoding.md",
+  "further_exploration.md"
 ]

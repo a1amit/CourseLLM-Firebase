@@ -15,13 +15,14 @@ import { ChatPanel } from './_components/chat-panel';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
-async function checkMaterialsExist(courseId: string) {
+async function getFirstMaterialFile(courseId: string): Promise<string | null> {
     const manifestPath = path.join(process.cwd(), 'output', 'materials', courseId, '_manifest.json');
     try {
-        await fs.access(manifestPath);
-        return true;
+        const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+        const manifest = JSON.parse(manifestContent);
+        return (Array.isArray(manifest) && manifest.length > 0) ? manifest[0] : null;
     } catch {
-        return false;
+        return null;
     }
 }
 
@@ -32,7 +33,7 @@ export default async function CourseDetailPage({ params }: { params: { courseId:
     notFound();
   }
   
-  const materialsExist = await checkMaterialsExist(course.id);
+  const firstMaterialFile = await getFirstMaterialFile(course.id);
   const courseMaterialString = course.materials.map(m => `Title: ${m.title}\nContent: ${m.content}`).join('\n\n---\n\n');
 
   return (
@@ -42,12 +43,12 @@ export default async function CourseDetailPage({ params }: { params: { courseId:
             <p className="text-muted-foreground">{course.description}</p>
         </div>
         
-        {materialsExist ? (
-            <Link href={`/student/materials/courses/${course.id}`} passHref>
+        {firstMaterialFile ? (
+            <a href={`/materials/${course.id}`} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline">
                     <BookOpen className="mr-2 h-4 w-4" /> View AI-Generated Course
                 </Button>
-            </Link>
+            </a>
         ) : (
             <Button variant="outline" disabled>
                 <BookOpen className="mr-2 h-4 w-4" /> AI Materials Not Yet Generated

@@ -54,7 +54,8 @@ Before generating the final content, you must output a <plan> block.
 Inside <plan>:
 - List the raw concepts identified.
 - Create a dependency graph (Concept A -> Concept B).
-- Propose a Table of Contents with file names (e.g., \`introduction.md\`, \`environment_setup.md\`). Use concise, snake_case filenames.
+- Propose a Table of Contents with file names (e.g., "introduction.md", "environment_setup.md"). Use concise, snake_case filenames.
+- CRITICAL: Do NOT add number prefixes like "01_" or "02_" to the filenames.
 - Explain *why* you chose this order.
 
 **OUTPUT FORMAT:**
