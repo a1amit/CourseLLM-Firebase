@@ -1,0 +1,403 @@
+openapi: 3.0.3
+info:
+  title: CourseLLM API
+  description: |
+    API Gateway specification for CourseLLM microservices.
+    
+    ## Authentication
+    All endpoints require a valid Firebase ID token passed in the Authorization header:
+    ```
+    Authorization: Bearer <firebase-id-token>
+    ```
+    
+    ## Role-Based Access Control
+    - **Student**: Can access chat and assessment endpoints
+    - **Teacher**: Can access indexing endpoints
+  version: "1.0.0"
+  contact:
+    name: CourseLLM Team
+
+servers:
+  - url: http://localhost:9002
+    description: Local development server
+  - url: https://api.coursellm.example.com
+    description: Production server (replace with actual URL)
+
+tags:
+  - name: Chat
+    description: Socratic tutoring chatbot service
+  - name: Assessment
+    description: Personalized learning assessment service
+  - name: Indexing
+    description: Course material indexing service
+  - name: Health
+    description: Service health checks
+
+# =============================================================================
+# Security Schemes
+# =============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID Token
+      description: Firebase ID token obtained after user authentication
+
+  # ===========================================================================
+  # Schemas
+  # ===========================================================================
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+      required:
+        - error
+      example:
+        error: "Access denied. Required role: student"
+
+    SocraticChatRequest:
+      type: object
+      properties:
+        courseMaterial:
+          type: string
+          description: The course material content to chat about
+          example: "Chapter 1: Introduction to Machine Learning\n\nMachine learning is a subset of artificial intelligence..."
+        studentQuestion:
+          type: string
+          description: The student's question about the course material
+          example: "What is the difference between supervised and unsupervised learning?"
+      required:
+        - courseMaterial
+        - studentQuestion
+
+    SocraticChatResponse:
+      type: object
+      properties:
+        response:
+          type: string
+          description: The AI-generated Socratic response
+          example: "That's an excellent question! Before I answer directly, let me ask you: what do you think 'supervised' implies about how the learning process works?"
+
+    PersonalizedAssessmentRequest:
+      type: object
+      properties:
+        studentLearningPath:
+          type: string
+          description: The student's learning path and progress
+        courseContent:
+          type: string
+          description: The complete course content
+        studentQuestionsAndAnswers:
+          type: string
+          description: Record of student's questions and answers
+        learningObjectives:
+          type: string
+          description: The learning objectives for the course
+      required:
+        - studentLearningPath
+        - courseContent
+        - studentQuestionsAndAnswers
+        - learningObjectives
+
+    PersonalizedAssessmentResponse:
+      type: object
+      properties:
+        assessment:
+          type: string
+          description: Personalized assessment of the student
+        suggestedAreasForImprovement:
+          type: string
+          description: Suggested areas for improvement
+
+    IndexingRequest:
+      type: object
+      properties:
+        courseId:
+          type: string
+          description: The unique ID of the course
+          example: "cs101-fall-2024"
+        documentTitle:
+          type: string
+          description: The title of the document being indexed
+          example: "Chapter 1: Introduction to Programming"
+        markdownContent:
+          type: string
+          description: The raw Markdown content of the document
+          example: "# Introduction\n\nThis chapter covers the basics of programming..."
+      required:
+        - courseId
+        - documentTitle
+        - markdownContent
+
+    IndexingResponse:
+      type: object
+      properties:
+        chunksCreated:
+          type: integer
+          description: Number of chunks created
+          example: 15
+        enrichedChunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnrichedChunk'
+
+    EnrichedChunk:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the chunk
+        content:
+          type: string
+          description: The chunk content
+        embedding:
+          type: array
+          items:
+            type: number
+          description: Vector embedding of the chunk
+        metadata:
+          type: object
+          properties:
+            headerPath:
+              type: array
+              items:
+                type: string
+              description: Hierarchical path of headers
+            summary:
+              type: string
+              description: AI-generated summary
+            keywords:
+              type: array
+              items:
+                type: string
+              description: Extracted keywords
+            questions:
+              type: array
+              items:
+                type: string
+              description: Hypothetical questions this chunk answers
+
+# =============================================================================
+# Paths (API Endpoints)
+# =============================================================================
+paths:
+  # ---------------------------------------------------------------------------
+  # Chat Service
+  # ---------------------------------------------------------------------------
+  /api/chat/socratic:
+    post:
+      tags:
+        - Chat
+      summary: Send a message to the Socratic tutor
+      description: |
+        Sends a student question to the AI-powered Socratic tutor and receives
+        a guided response that encourages critical thinking.
+        
+        **Authorization**: Students only
+      operationId: socraticChat
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SocraticChatRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SocraticChatResponse'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ---------------------------------------------------------------------------
+  # Assessment Service
+  # ---------------------------------------------------------------------------
+  /api/assessment/personalized:
+    post:
+      tags:
+        - Assessment
+      summary: Generate a personalized assessment
+      description: |
+        Generates a personalized assessment based on the student's learning
+        path, interactions, and course objectives.
+        
+        **Authorization**: Students only
+      operationId: personalizedAssessment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonalizedAssessmentRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalizedAssessmentResponse'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ---------------------------------------------------------------------------
+  # Indexing Service
+  # ---------------------------------------------------------------------------
+  /api/indexing/course-material:
+    post:
+      tags:
+        - Indexing
+      summary: Index course material
+      description: |
+        Processes and indexes course material for semantic search.
+        The content is chunked, enriched with AI-generated metadata,
+        and vector embeddings are created.
+        
+        **Authorization**: Teachers only
+      operationId: indexCourseMaterial
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndexingRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndexingResponse'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - teacher role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ---------------------------------------------------------------------------
+  # Test Endpoints (Development Only)
+  # ---------------------------------------------------------------------------
+  /api/test-token:
+    get:
+      tags:
+        - Health
+      summary: Generate test authentication token
+      description: |
+        **⚠️ Development/Testing Only**
+        
+        Generates a custom Firebase token for testing purposes.
+        This endpoint is only available when `ENABLE_TEST_AUTH=true`.
+      operationId: getTestToken
+      parameters:
+        - name: uid
+          in: query
+          description: User ID for the test user
+          schema:
+            type: string
+            default: test-user
+        - name: role
+          in: query
+          description: Role for the test user
+          schema:
+            type: string
+            enum:
+              - student
+              - teacher
+        - name: createProfile
+          in: query
+          description: Whether to create a Firestore profile
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Token generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Firebase custom token
+        '403':
+          description: Test auth is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+

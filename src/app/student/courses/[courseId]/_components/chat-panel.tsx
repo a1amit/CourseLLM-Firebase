@@ -1,6 +1,6 @@
 "use client";
 
-import { socraticCourseChat } from "@/ai/flows/socratic-course-chat";
+import { chatApi } from "@/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,17 +36,25 @@ export function ChatPanel({ courseMaterial }: ChatPanelProps) {
 
     startTransition(async () => {
         try {
-            const result = await socraticCourseChat({
-                courseMaterial,
-                studentQuestion: input,
-            });
+            // Use authenticated API instead of direct server action
+            const result = await chatApi.sendMessage(courseMaterial, input);
             const botMessage: Message = { role: "bot", text: result.response };
             setMessages((prev) => [...prev, botMessage]);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error with Socratic chat:", error);
+            let errorText = "Sorry, I encountered an error. Please try again.";
+            
+            if (error.message === 'User not authenticated') {
+                errorText = "Please sign in to continue chatting.";
+            } else if (error.message?.includes('Token expired')) {
+                errorText = "Your session has expired. Please sign in again.";
+            } else if (error.message?.includes('Access denied')) {
+                errorText = "You don't have permission to use this feature.";
+            }
+            
             const errorMessage: Message = {
                 role: "bot",
-                text: "Sorry, I encountered an error. Please try again.",
+                text: errorText,
             };
             setMessages((prev) => [...prev, errorMessage]);
         }
