@@ -27,15 +27,15 @@ npm run dev:local
 
 Open http://localhost:9002 - that's it! 🎉
 
-📖 **See [docs/quick-start-local.md](docs/quick-start-local.md) for details**
+📖 **See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for complete guide**
 
 ---
 
 ## 🚀 Production Setup
 
-For deploying to real Firebase:
+For deploying to real Firebase, see the **Production Setup** section in:
 
-📖 **See [docs/setup-guide.md](docs/setup-guide.md) for full instructions**
+📖 **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**
 
 ---
 
