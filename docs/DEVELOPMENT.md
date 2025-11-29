@@ -341,7 +341,7 @@ npx playwright install
 # Terminal 1: Start server
 npm run dev:local
 
-# Run tests
+# Terminal 2: Run tests
 npm run test:e2e
 ```
 
