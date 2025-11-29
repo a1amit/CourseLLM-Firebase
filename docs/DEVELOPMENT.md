@@ -338,6 +338,9 @@ const result = await chatApi.sendMessage(courseMaterial, question);
 # Install browsers (first time)
 npx playwright install
 
+# Terminal 1: Start server
+npm run dev:local
+
 # Run tests
 npm run test:e2e
 ```
