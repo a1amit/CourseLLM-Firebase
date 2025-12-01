@@ -52,10 +52,27 @@ The app runs at **http://localhost:9002**. It will automatically connect to the 
 
 ### Environment Configuration
 
-The app validates environment variables at startup using Zod schemas (see `src/lib/env.ts`):
+The app uses **[Zod](https://zod.dev)** for runtime environment variable validation (see `src/lib/env.ts`). This ensures fail-fast behavior with descriptive error messages if configuration is missing or invalid.
 
-- **Development with emulators**: Set `USE_FIREBASE_EMULATORS=true`. Firebase credentials can use placeholder values.
+- **Development with emulators**: Set `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`. Firebase credentials can use placeholder values.
 - **Production**: All `NEXT_PUBLIC_FIREBASE_*` variables are strictly required. The app will fail fast with descriptive errors if any are missing.
+
+### Testing
+
+**Run All E2E Tests**
+```bash
+npm run test:e2e
+```
+
+**Run Emulator Configuration Tests**
+```bash
+npm run test:emulators
+```
+
+**Run Environment Validation Unit Tests**
+```bash
+npm run test:env
+```
 
 ## 🧠 AI Features
 
