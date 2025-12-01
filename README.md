@@ -6,6 +6,57 @@ It is intended for Undergraduate University Courses and is being tested on Compu
 
 To get started, take a look at src/app/page.tsx.
 
+## 🚀 Local Development
+
+### Prerequisites
+- Node.js 18+
+- pnpm (`npm install -g pnpm`)
+- Firebase CLI (`npm install -g firebase-tools`)
+- Google Cloud account (for production deployment)
+
+### Quick Start
+
+**1. Install Dependencies**
+```bash
+pnpm install
+```
+
+**2. Configure Environment Variables**
+```bash
+cp .env.local.example .env.local
+```
+Edit `.env.local` with your Firebase project credentials. For local development with emulators, ensure:
+```env
+NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
+```
+
+**3. Start Firebase Emulators**
+```bash
+firebase emulators:start
+```
+This starts local emulators for Auth, Firestore, and Storage. The Emulator UI is available at **http://localhost:4000**.
+
+| Service   | Port |
+|-----------|------|
+| Auth      | 9099 |
+| Firestore | 8080 |
+| Storage   | 9199 |
+| UI        | 4000 |
+
+**4. Start the Development Server**
+In a separate terminal:
+```bash
+npm run dev
+```
+The app runs at **http://localhost:9002**. It will automatically connect to the local emulators.
+
+### Environment Configuration
+
+The app validates environment variables at startup using Zod schemas (see `src/lib/env.ts`):
+
+- **Development with emulators**: Set `USE_FIREBASE_EMULATORS=true`. Firebase credentials can use placeholder values.
+- **Production**: All `NEXT_PUBLIC_FIREBASE_*` variables are strictly required. The app will fail fast with descriptive errors if any are missing.
+
 ## 🧠 AI Features
 
 ### Context-Aware RAG Pipeline

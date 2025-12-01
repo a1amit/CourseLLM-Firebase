@@ -1,14 +1,13 @@
 "use client";
 
-import { socraticCourseChat } from "@/ai/flows/socratic-course-chat";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Bot, Loader2, Send } from "lucide-react";
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { FormEvent } from "react";
 
 type Message = {
@@ -23,34 +22,46 @@ type ChatPanelProps = {
 export function ChatPanel({ courseMaterial }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const handleChatSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = { role: "user", text: input };
+    const currentInput = input;
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setIsLoading(true);
 
-    startTransition(async () => {
-        try {
-            const result = await socraticCourseChat({
-                courseMaterial,
-                studentQuestion: input,
-            });
-            const botMessage: Message = { role: "bot", text: result.response };
-            setMessages((prev) => [...prev, botMessage]);
-        } catch (error) {
-            console.error("Error with Socratic chat:", error);
-            const errorMessage: Message = {
-                role: "bot",
-                text: "Sorry, I encountered an error. Please try again.",
-            };
-            setMessages((prev) => [...prev, errorMessage]);
-        }
-    });
+    try {
+      const response = await fetch("/api/chat/socratic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseMaterial,
+          studentQuestion: currentInput,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get response");
+      }
+
+      const result = await response.json();
+      const botMessage: Message = { role: "bot", text: result.response };
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error with Socratic chat:", error);
+      const errorMessage: Message = {
+        role: "bot",
+        text: "Sorry, I encountered an error. Please try again.",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -102,7 +113,7 @@ export function ChatPanel({ courseMaterial }: ChatPanelProps) {
                 )}
               </div>
             ))}
-            {isPending && (
+            {isLoading && (
               <div className="flex items-start gap-3 justify-start">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback><Bot size={20}/></AvatarFallback>
@@ -121,11 +132,11 @@ export function ChatPanel({ courseMaterial }: ChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a question..."
-            disabled={isPending}
+            disabled={isLoading}
             autoComplete="off"
           />
-          <Button type="submit" size="icon" disabled={isPending || !input.trim()}>
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             <span className="sr-only">Send</span>
           </Button>
         </form>
