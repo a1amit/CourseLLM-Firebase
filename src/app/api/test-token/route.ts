@@ -6,6 +6,16 @@ import admin from "firebase-admin";
 // Guard this route so it's only available during test runs.
 const ENABLED = process.env.ENABLE_TEST_AUTH === "true";
 
+// Check if we should use emulators
+const USE_EMULATORS = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true";
+
+// Configure emulator hosts BEFORE importing/initializing Admin SDK
+if (USE_EMULATORS) {
+  // These environment variables are read by the Firebase Admin SDK
+  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080";
+  process.env.FIREBASE_AUTH_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || "127.0.0.1:9099";
+}
+
 function initAdmin() {
   if (admin.apps.length) return admin;
 
@@ -30,7 +40,19 @@ function initAdmin() {
     throw new Error("Service account not provided in FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH");
   }
 
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  // Initialize with projectId for emulator compatibility
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: serviceAccount.project_id,
+  });
+
+  if (USE_EMULATORS) {
+    console.log("🔧 Admin SDK using emulators:", {
+      firestore: process.env.FIRESTORE_EMULATOR_HOST,
+      auth: process.env.FIREBASE_AUTH_EMULATOR_HOST,
+    });
+  }
+
   return admin;
 }
 

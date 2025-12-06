@@ -54,6 +54,9 @@ ui-debug.log
 pubsub-debug.log
 database-debug.log
 
+# secrets (service account keys, etc.)
+/secrets/
+
 # dataconnect
 dataconnect/.dataconnect
 src/dataconnect-generated/

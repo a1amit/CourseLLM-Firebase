@@ -59,6 +59,40 @@ The app uses **[Zod](https://zod.dev)** for runtime environment variable validat
 
 ### Testing
 
+#### Prerequisites
+
+Before running tests, ensure the following:
+
+1. **Firebase Emulators running** (in a separate terminal):
+   ```bash
+   firebase emulators:start
+   ```
+
+2. **Development server running** (in a separate terminal):
+   ```bash
+   npm run dev
+   ```
+
+3. **Environment variables** set in `.env.local`:
+   ```env
+   # Enable test authentication API
+   ENABLE_TEST_AUTH=true
+   
+   # Use Firebase emulators instead of production
+   NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
+   
+   # Path to Firebase service account JSON (for Admin SDK)
+   FIREBASE_SERVICE_ACCOUNT_PATH=./secrets/your-service-account.json
+   ```
+
+   > **Note:** The service account JSON file can be downloaded from the [Firebase Console](https://console.firebase.google.com/):
+   > 1. Go to your project → **Project Settings** (gear icon)
+   > 2. Navigate to **Service accounts** tab
+   > 3. Click **"Generate new private key"**
+   > 4. Save the downloaded file to the `secrets/` folder in your project root
+
+#### Run Tests
+
 **Run All E2E Tests**
 ```bash
 npm run test:e2e
