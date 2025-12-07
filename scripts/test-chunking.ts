@@ -1,5 +1,6 @@
 
 import { chunkMarkdown } from '../src/lib/markdown-chunker';
+import fetch from 'node-fetch';
 
 const testCases = [
   {
@@ -74,7 +75,20 @@ function runTests() {
     console.log(`Testing: ${test.name}`);
     console.log(`----------------------------------------`);
     
-    const chunks = chunkMarkdown(test.markdown);
+    let chunks;
+    const CHUNKER_URL = process.env.CHUNKER_URL;
+    const CHUNKER_KEY = process.env.CHUNKER_SERVICE_API_KEY || process.env.SERVICE_API_KEY || 'devkey';
+    if (CHUNKER_URL) {
+      const resp = await fetch(CHUNKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': CHUNKER_KEY },
+        body: JSON.stringify({ markdown: test.markdown }),
+      });
+      const json = await resp.json();
+      chunks = (json.chunks || []).map((c: any) => ({ content: c.content, metadata: { headerPath: c.header_path } }));
+    } else {
+      chunks = chunkMarkdown(test.markdown);
+    }
     
     chunks.forEach((chunk, i) => {
       console.log(`\n[Chunk ${i + 1}]`);

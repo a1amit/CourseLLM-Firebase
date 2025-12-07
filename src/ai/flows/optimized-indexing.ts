@@ -1,6 +1,5 @@
 
 import { genkit, z } from 'genkit';
-import { chunkMarkdown } from '@/lib/markdown-chunker';
 import { ai } from '@/ai/genkit';
 
 /**
@@ -71,10 +70,29 @@ export const optimizedIndexingFlow = ai.defineFlow(
     console.log(`Starting optimized indexing for: ${input.documentTitle}`);
 
     // -----------------------------------------------------------------------
-    // Step 1: Deterministic Chunking
+    // Step 1: Deterministic Chunking (via chunker microservice)
     // -----------------------------------------------------------------------
-    const rawChunks = chunkMarkdown(input.markdownContent);
-    console.log(`Generated ${rawChunks.length} raw chunks.`);
+    const CHUNKER_URL = process.env.CHUNKER_URL || 'http://localhost:8000/v1/chunk';
+    const CHUNKER_KEY = process.env.CHUNKER_SERVICE_API_KEY || process.env.SERVICE_API_KEY || 'devkey';
+
+    const chunkResp = await fetch(CHUNKER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': CHUNKER_KEY,
+      },
+      body: JSON.stringify({ markdown: input.markdownContent }),
+    });
+
+    if (!chunkResp.ok) {
+      const txt = await chunkResp.text();
+      throw new Error(`Chunker service failed: ${chunkResp.status} ${txt}`);
+    }
+
+    const chunkJson: any = await chunkResp.json();
+    // chunkJson.chunks is [{ content, header_path }]
+    const rawChunks: any[] = (chunkJson.chunks || []).map((c: any) => ({ content: c.content, metadata: { headerPath: c.header_path } }));
+    console.log(`Generated ${rawChunks.length} raw chunks via chunker service.`);
 
     // -----------------------------------------------------------------------
     // Step 2 & 3: Enrichment & Embedding (Batched)
