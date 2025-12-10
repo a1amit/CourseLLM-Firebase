@@ -11,6 +11,34 @@ This microservice handles the processing, chunking, and semantic analysis of edu
 - **Embeddings**: Generates vector embeddings using Sentence Transformers (local) or Vertex AI (cloud).
 - **FastAPI**: High-performance Python API.
 
+## Architecture & Pipeline
+
+```mermaid
+graph TB
+    A[Markdown Input] --> B[SemanticChunker]
+    B --> C[Chunks with Content]
+    C --> D{extract_topics?}
+    D -- Yes --> E[TopicExtractor (Gemini)]
+    D -- No --> F[Skip]
+    E --> G[Chunks with Topics]
+    F --> G
+    G --> H{rank_content?}
+    H -- Yes --> I[ContentRanker]
+    H -- No --> J[Skip]
+    I --> K[Chunks with Ranks]
+    J --> K
+    K --> L{generate_embeddings?}
+    L -- Yes --> M[EmbeddingGenerator]
+    L -- No --> N[Return Chunks]
+    M --> N
+    
+    style A fill:#e1f5ff
+    style E fill:#fff4e1,stroke:#f90
+    style I fill:#ffe1f5,stroke:#d0f
+    style M fill:#e1ffe1,stroke:#090
+    style N fill:#f0f0f0,stroke:#333
+```
+
 ## API Endpoints
 
 ### 1. Chunking Endpoint

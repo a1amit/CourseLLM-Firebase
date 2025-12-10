@@ -95,7 +95,8 @@ GOOGLE_GENAI_USE_VERTEXAI=True
 **Get a Gemini API key**: https://aistudio.google.com/app/apikey
 
 #### Python Service (Ingestion)
-No manual `.env` needed - connects to emulators automatically.
+Requires `GOOGLE_API_KEY` (or `GOOGLE_GENAI_API_KEY`) for topic extraction.
+Create `services/ingestion/.env` or ensure your deployment environment has this variable set.
 For Vertex AI embeddings, see **[VERTEX_AI_SETUP.md](services/ingestion/VERTEX_AI_SETUP.md)**.
 
 ## Running the Application
