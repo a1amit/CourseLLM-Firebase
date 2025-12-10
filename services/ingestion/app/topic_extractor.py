@@ -39,13 +39,13 @@ class TopicExtractor:
         else:
             self.client = genai.Client()
     
-    def extract_topics(self, text: str, max_topics: int = 5) -> tuple[List[str], str]:
+    def extract_topics(self, text: str, max_topics: int = 15) -> tuple[List[str], str]:
         """
         Extract topic keywords from a single text chunk.
         
         Args:
             text: Text content to analyze
-            max_topics: Maximum number of topics to extract
+            max_topics: Maximum number of topics to extract (default 15)
             
         Returns:
             Tuple of (List of topic keywords, source string)
@@ -58,14 +58,15 @@ class TopicExtractor:
         
         prompt = f"""You are an expert at analyzing educational content and extracting key topics.
 
-Analyze this educational text and extract {max_topics} main topic keywords or phrases.
+Analyze this educational text and extract all relevant topic keywords or phrases (up to {max_topics}).
 
 Rules:
 - Return ONLY the topics, separated by commas
-- Use lowercase
+- Uses lowercase
 - Be specific and relevant to the content
 - Prefer 1-3 word phrases
 - No explanations, just the comma-separated list
+- Order by relevance (most important first)
 
 Text:
 {text_sample}
@@ -74,14 +75,12 @@ Topics:"""
         
         try:
             # Try to generate content
-
-
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
                 config={
                     "temperature": 0.3,  # Low temperature for consistency
-                    "max_output_tokens": 100,
+                    "max_output_tokens": 200,  # Increased for more topics
                 }
             )
             
@@ -147,7 +146,7 @@ Topics:"""
     def extract_topics_batch(
         self, 
         chunks: List[Dict[str, Any]], 
-        max_topics: int = 5,
+        max_topics: int = 15,
         show_progress: bool = False
     ) -> List[Dict[str, Any]]:
         """
@@ -182,7 +181,7 @@ Topics:"""
 def extract_topics_from_chunks(
     chunks: List[Dict[str, Any]],
     model_name: str = "gemini-2.5-flash-lite",
-    max_topics: int = 5
+    max_topics: int = 15
 ) -> List[Dict[str, Any]]:
     """
     Convenience function to extract topics from chunks.
