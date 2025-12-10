@@ -22,6 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Allowed user roles for RBAC
+ALLOWED_USER_ROLES = {'teacher', 'student'}
 
 def auth_dependency(authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)):
     """Authenticate either via service API key or via user bearer token.
@@ -57,14 +59,17 @@ def health():
 
 
 @app.post('/v1/chunk', response_model=ChunkResponse, summary='Chunk Markdown')
-def chunk_endpoint(request: ChunkRequest):
+def chunk_endpoint(request: ChunkRequest, user=Depends(auth_dependency)):
     """
-    Public endpoint for chunking markdown text.
+    Chunk markdown text with optional embedding generation.
     
-    Optionally generates embeddings for each chunk.
+    Requires authentication via:
+    - Service API key (X-API-Key header), or
+    - User authentication token (Authorization: Bearer <token>)
     
-    This endpoint is publicly accessible for development and testing purposes.
-    For production, consider adding authentication or rate limiting.
+    Optionally generates embeddings for each chunk using:
+    - Sentence Transformers (local) - Fast, free, works offline
+    - Vertex AI (cloud) - Production-grade Google embeddings
     """
     max_size = request.max_chunk_size if request.max_chunk_size is not None else DEFAULT_MAX_CHUNK_SIZE
     strategy = request.strategy if request.strategy else "recursive"

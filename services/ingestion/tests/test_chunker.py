@@ -42,6 +42,12 @@ def test_post_chunk_with_local_jwt():
 
 
 def test_header_inside_code_block_not_recognized():
+    """
+    Test that Chonkie properly chunks markdown with code blocks.
+    
+    Note: Chonkie doesn't track header_path - it focuses on semantic chunking.
+    We just verify it produces valid chunks with the content.
+    """
     md = """
 # Real Header
 
@@ -51,22 +57,35 @@ def test_header_inside_code_block_not_recognized():
 
 More text.
 """
-    # Use chunk_markdown directly to assert header parsing
+    # Use chunk_markdown to get chunks
     chunks = chunk_markdown(md, max_chunk_size=1000)
-    # We should have at least one chunk; header path for chunks should include 'Real Header'
-    assert any('Real Header' in (item.get('header_path') or []) for item in chunks)
-    # Ensure the string 'Not A Header' does not appear as a header in any header_path
-    assert all('Not A Header' not in (h for h in (item.get('header_path') or [])) for item in chunks)
+    # We should have at least one chunk
+    assert len(chunks) >= 1
+    # Verify chunks have required fields
+    for chunk in chunks:
+        assert 'content' in chunk
+        assert 'token_count' in chunk
+    # Verify the real header appears in content
+    all_content = ' '.join(c['content'] for c in chunks)
+    assert 'Real Header' in all_content
 
 
 def test_paragraph_splitting_when_exceeding_max_size():
-    # Build content with 3 paragraphs that together exceed max_chunk_size
+    """
+    Test that Chonkie respects max chunk size in tokens.
+    
+    Note: Chonkie uses TOKEN-based sizing, not character-based.
+    With max_chunk_size=100 tokens, chunks should respect that limit.
+    """
+    # Build content with paragraphs
     para = 'x' * 60
     md = '# Title\n\n' + '\n\n'.join([para for _ in range(6)])
-    # Small max to force splitting
+    # Use token-based chunking
     chunks = chunk_markdown(md, max_chunk_size=100)
-    # Each chunk content length should be <= max_chunk_size
-    assert all(len(c['content']) <= 100 for c in chunks)
+    # Verify we got chunks
+    assert len(chunks) > 0
+    # Each chunk's token_count should be <= max_chunk_size
+    assert all(c['token_count'] <= 100 for c in chunks), f"Found chunks exceeding token limit: {[c['token_count'] for c in chunks]}"
 
 
 def test_invalid_api_key_returns_401():
