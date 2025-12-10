@@ -18,7 +18,7 @@ graph TB
     A[Markdown Input] --> B[SemanticChunker]
     B --> C[Chunks with Content]
     C --> D{extract_topics?}
-    D -- Yes --> E[TopicExtractor (Gemini)]
+    D -- Yes --> E["TopicExtractor (Gemini)"]
     D -- No --> F[Skip]
     E --> G[Chunks with Topics]
     F --> G
