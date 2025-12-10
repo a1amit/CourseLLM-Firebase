@@ -381,93 +381,6 @@ export default function ChunkingPreview() {
                 </CardContent>
             </Card>
 
-            {/* Results */}
-            {chunks.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Chunks ({chunks.length})</CardTitle>
-                        <CardDescription>
-                            Total of {chunks.reduce((sum, c) => sum + c.token_count, 0)} tokens across {chunks.length} chunks
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {chunks.map((chunk) => (
-                            <div
-                                key={chunk.index}
-                                className="p-4 border rounded-lg bg-muted/30 space-y-2"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <Badge variant="secondary">Chunk #{chunk.index + 1}</Badge>
-                                    <div className="flex gap-2">
-                                        <Badge variant="outline">{chunk.token_count} tokens</Badge>
-                                        {chunk.embedding_dim && (
-                                            <Badge variant="default" className="bg-green-600">
-                                                {chunk.embedding_dim}D embedding
-                                            </Badge>
-                                        )}
-                                        {chunk.start_index !== undefined && chunk.end_index !== undefined && (
-                                            <Badge variant="outline">
-                                                chars {chunk.start_index}-{chunk.end_index}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Rank & Topics Display */}
-                                {(chunk.rank !== undefined || (chunk.topics && chunk.topics.length > 0)) && (
-                                    <div className="flex flex-wrap gap-2 items-center text-sm">
-                                        {chunk.rank !== undefined && (
-                                            <Badge variant={chunk.rank > 70 ? "default" : "secondary"} className={chunk.rank > 70 ? "bg-blue-600 hover:bg-blue-700" : ""}>
-                                                Rank: {chunk.rank}/100
-                                            </Badge>
-                                        )}
-
-                                        {/* Topic Source Indicator */}
-                                        {chunk.metadata?.topic_source && (
-                                            <Badge variant="outline" className={`text-xs ${chunk.metadata.topic_source === 'gemini' ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
-                                                Source: {chunk.metadata.topic_source === 'gemini' ? 'Gemini AI' : 'Fallback'}
-                                            </Badge>
-                                        )}
-
-                                        {chunk.topics && chunk.topics.map((topic, i) => (
-                                            <Badge key={i} variant="outline" className="text-xs bg-background">
-                                                #{topic}
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <pre className="whitespace-pre-wrap text-sm font-mono bg-background p-3 rounded border">
-                                    {chunk.content}
-                                </pre>
-
-                                {/* Embedding Vector Display */}
-                                {chunk.embedding && chunk.embedding.length > 0 && (
-                                    <details className="mt-2">
-                                        <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                                            📊 View Embedding Vector ({chunk.embedding.length} dimensions)
-                                        </summary>
-                                        <div className="mt-2 p-3 bg-muted/50 rounded border text-xs font-mono max-h-40 overflow-y-auto">
-                                            <div className="text-xs text-muted-foreground mb-1">First 10 values:</div>
-                                            <div className="grid grid-cols-5 gap-2">
-                                                {chunk.embedding.slice(0, 10).map((val, idx) => (
-                                                    <div key={idx} className="text-right">
-                                                        {val.toFixed(4)}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                                                ... and {chunk.embedding.length - 10} more values
-                                            </div>
-                                        </div>
-                                    </details>
-                                )}
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
-
             {/* Topic Search Section */}
             {chunks.length > 0 && (
                 <Card className="border-blue-200 bg-blue-50/20">
@@ -558,6 +471,95 @@ export default function ChunkingPreview() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Results */}
+            {chunks.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Chunks ({chunks.length})</CardTitle>
+                        <CardDescription>
+                            Total of {chunks.reduce((sum, c) => sum + c.token_count, 0)} tokens across {chunks.length} chunks
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {chunks.map((chunk) => (
+                            <div
+                                key={chunk.index}
+                                className="p-4 border rounded-lg bg-muted/30 space-y-2"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <Badge variant="secondary">Chunk #{chunk.index + 1}</Badge>
+                                    <div className="flex gap-2">
+                                        <Badge variant="outline">{chunk.token_count} tokens</Badge>
+                                        {chunk.embedding_dim && (
+                                            <Badge variant="default" className="bg-green-600">
+                                                {chunk.embedding_dim}D embedding
+                                            </Badge>
+                                        )}
+                                        {chunk.start_index !== undefined && chunk.end_index !== undefined && (
+                                            <Badge variant="outline">
+                                                chars {chunk.start_index}-{chunk.end_index}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Rank & Topics Display */}
+                                {(chunk.rank !== undefined || (chunk.topics && chunk.topics.length > 0)) && (
+                                    <div className="flex flex-wrap gap-2 items-center text-sm">
+                                        {chunk.rank !== undefined && (
+                                            <Badge variant={chunk.rank > 70 ? "default" : "secondary"} className={chunk.rank > 70 ? "bg-blue-600 hover:bg-blue-700" : ""}>
+                                                Rank: {chunk.rank}/100
+                                            </Badge>
+                                        )}
+
+                                        {/* Topic Source Indicator */}
+                                        {chunk.metadata?.topic_source && (
+                                            <Badge variant="outline" className={`text-xs ${chunk.metadata.topic_source === 'gemini' ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
+                                                Source: {chunk.metadata.topic_source === 'gemini' ? 'Gemini AI' : 'Fallback'}
+                                            </Badge>
+                                        )}
+
+                                        {chunk.topics && chunk.topics.map((topic, i) => (
+                                            <Badge key={i} variant="outline" className="text-xs bg-background">
+                                                #{topic}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <pre className="whitespace-pre-wrap text-sm font-mono bg-background p-3 rounded border">
+                                    {chunk.content}
+                                </pre>
+
+                                {/* Embedding Vector Display */}
+                                {chunk.embedding && chunk.embedding.length > 0 && (
+                                    <details className="mt-2">
+                                        <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                                            📊 View Embedding Vector ({chunk.embedding.length} dimensions)
+                                        </summary>
+                                        <div className="mt-2 p-3 bg-muted/50 rounded border text-xs font-mono max-h-40 overflow-y-auto">
+                                            <div className="text-xs text-muted-foreground mb-1">First 10 values:</div>
+                                            <div className="grid grid-cols-5 gap-2">
+                                                {chunk.embedding.slice(0, 10).map((val, idx) => (
+                                                    <div key={idx} className="text-right">
+                                                        {val.toFixed(4)}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                                                ... and {chunk.embedding.length - 10} more values
+                                            </div>
+                                        </div>
+                                    </details>
+                                )}
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
+
+
         </div>
     );
 }
