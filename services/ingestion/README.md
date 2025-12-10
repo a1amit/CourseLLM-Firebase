@@ -44,6 +44,21 @@ graph TB
 ### 1. Chunking Endpoint
 `POST /v1/chunk`
 
+Parameters:
+- `markdown` (required): The markdown text to chunk
+- `strategy`: "semantic" (default), "recursive", or "token"
+- `max_chunk_size`: Max tokens per chunk (default: 768)
+- `overlap`: Overlap tokens between chunks (default: 0)
+- `tokenizer`: Tokenizer model (default: "gpt2")
+- `generate_embeddings`: Boolean to generate vectors
+- `embedding_provider`: "sentence-transformers" or "vertex-ai"
+- `embedding_model`: Specific model name
+- `extract_topics`: Boolean to extract topics
+- `rank_content`: Boolean to rank chunk relevance
+- `document_title`: Context for ranking
+- `similarity_threshold`: Semantic sensitivity 0-1 (Semantic only)
+- `min_sentences_per_chunk`: Min sentences msg grouping (Semantic only)
+
 **Request:**
 ```json
 {

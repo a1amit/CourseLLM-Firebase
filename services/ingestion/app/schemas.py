@@ -14,6 +14,9 @@ class ChunkRequest(BaseModel):
     extract_topics: Optional[bool] = Field(True, description="Extract topic tags from chunks")
     rank_content: Optional[bool] = Field(True, description="Rank chunks by relevance")
     document_title: Optional[str] = Field(None, description="Document title for ranking context")
+    overlap: Optional[int] = Field(0, description="Number of tokens to overlap between chunks")
+    similarity_threshold: Optional[float] = Field(None, description="Semantic similarity threshold (0-1)")
+    min_sentences_per_chunk: Optional[int] = Field(None, description="Minimum sentences per chunk")
 
 
 

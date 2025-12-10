@@ -72,13 +72,20 @@ def chunk_endpoint(request: ChunkRequest):
     max_size = request.max_chunk_size if request.max_chunk_size is not None else DEFAULT_MAX_CHUNK_SIZE
     strategy = request.strategy if request.strategy else "semantic"
     tokenizer = request.tokenizer if request.tokenizer else "gpt2"
+    overlap = request.overlap if request.overlap is not None else 0
 
-    # Generate chunks
+    # Generate chunks with optional overlap and embeddings (if native provider)
     chunks = chunk_markdown(
         request.markdown,
         strategy=strategy,
         max_chunk_size=max_size,
-        tokenizer=tokenizer
+        tokenizer=tokenizer,
+        overlap=overlap,
+        generate_embeddings=request.generate_embeddings,
+        embedding_provider=request.embedding_provider,
+        embedding_model=request.embedding_model,
+        similarity_threshold=request.similarity_threshold,
+        min_sentences_per_chunk=request.min_sentences_per_chunk
     )
     
     # Extract topics if requested
@@ -114,67 +121,78 @@ def chunk_endpoint(request: ChunkRequest):
             for chunk in chunks:
                 chunk['rank'] = 0.0
     
-    # Optionally generate embeddings
+    # Generate embeddings if requested and NOT already done by pipeline
+    # (The pipeline handles sentence-transformers natively now)
     if request.generate_embeddings:
-        try:
-            from .embeddings import get_embedding_generator
-            
-            provider = request.embedding_provider if request.embedding_provider else "sentence-transformers"
-            model_name = request.embedding_model
-            
-            # Auto-select default model based on provider
-            if not model_name:
-                if provider == "vertex-ai":
-                    model_name = "gemini-embedding-001"
-                else:
-                    model_name = "all-MiniLM-L6-v2"
-            
-            # Get the appropriate generator
-            generator = get_embedding_generator(
-                provider=provider,
-                model_name=model_name
-            )
-            
-            chunks = generator.generate_chunk_embeddings(chunks)
-        except ImportError as error:
-            # Library not installed
-            if "google-genai" in str(error):
-                error_msg = "Vertex AI requires google-genai SDK. Install with: pip install google-genai"
-            elif "sentence-transformers" in str(error):
-                error_msg = "Sentence Transformers requires installation. Run: pip install sentence-transformers"
-            else:
-                error_msg = f"Missing dependency: {str(error)}"
-            
-            raise HTTPException(status_code=400, detail=error_msg)
+        # Check if first chunk already has embedding
+        has_embeddings = len(chunks) > 0 and 'embedding' in chunks[0]
         
-        except Exception as error:
-            error_str = str(error)
+        if not has_embeddings:
+            # Fallback for non-native providers (e.g. Vertex AI)
+            try:
+                from .embeddings import get_embedding_generator
+                
+                provider = request.embedding_provider if request.embedding_provider else "sentence-transformers"
+                
+                # If provider is sentence-transformers but we are here, it means
+                # Chonkie pipeline failed to load it or it wasn't used. 
+                # We can try manual generation or skip.
+                
+                model_name = request.embedding_model
+                
+                # Auto-select default model based on provider
+                if not model_name:
+                    if provider == "vertex-ai":
+                        model_name = "gemini-embedding-001"
+                    else:
+                        model_name = "all-MiniLM-L6-v2"
+                
+                # Get the appropriate generator
+                generator = get_embedding_generator(
+                    provider=provider,
+                    model_name=model_name
+                )
+                
+                chunks = generator.generate_chunk_embeddings(chunks)
+            except ImportError as error:
+                # Library not installed
+                if "google-genai" in str(error):
+                    error_msg = "Vertex AI requires google-genai SDK. Install with: pip install google-genai"
+                elif "sentence-transformers" in str(error):
+                    error_msg = "Sentence Transformers requires installation. Run: pip install sentence-transformers"
+                else:
+                    error_msg = f"Missing dependency: {str(error)}"
+                
+                raise HTTPException(status_code=400, detail=error_msg)
             
-            # Check for common Vertex AI credential errors
-            if "GOOGLE_CLOUD_PROJECT" in error_str or "project" in error_str.lower():
-                raise HTTPException(
-                    status_code=401,
-                    detail="Vertex AI credentials not configured. Please set GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, and GOOGLE_GENAI_USE_VERTEXAI=True environment variables, or run: gcloud auth application-default login"
-                )
-            elif "credentials" in error_str.lower() or "authentication" in error_str.lower():
-                raise HTTPException(
-                    status_code=401,
-                    detail="Vertex AI authentication failed. Run: gcloud auth application-default login"
-                )
-            elif "api" in error_str.lower() and "enabled" in error_str.lower():
-                raise HTTPException(
-                    status_code=403,
-                    detail="Vertex AI API not enabled. Enable it in Google Cloud Console for your project."
-                )
-            else:
-                # Generic embedding error - log it but continue without embeddings
-                print(f"Warning: Could not generate embeddings: {error}")
-                import traceback
-                traceback.print_exc()
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Embedding generation failed: {error_str}"
-                )
+            except Exception as error:
+                error_str = str(error)
+                
+                # Check for common Vertex AI credential errors
+                if "GOOGLE_CLOUD_PROJECT" in error_str or "project" in error_str.lower():
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Vertex AI credentials not configured. Please set GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, and GOOGLE_GENAI_USE_VERTEXAI=True environment variables, or run: gcloud auth application-default login"
+                    )
+                elif "credentials" in error_str.lower() or "authentication" in error_str.lower():
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Vertex AI authentication failed. Run: gcloud auth application-default login"
+                    )
+                elif "api" in error_str.lower() and "enabled" in error_str.lower():
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Vertex AI API not enabled. Enable it in Google Cloud Console for your project."
+                    )
+                else:
+                    # Generic embedding error - log it but continue without embeddings
+                    print(f"Warning: Could not generate embeddings: {error}")
+                    import traceback
+                    traceback.print_exc()
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Embedding generation failed: {error_str}"
+                    )
     
     # Store chunks in memory for topic search (development only)
     global _chunk_store

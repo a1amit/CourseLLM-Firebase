@@ -41,8 +41,11 @@ export default function ChunkingPreview() {
     const [error, setError] = useState<string | null>(null);
 
     // Chunking parameters
-    const [strategy, setStrategy] = useState<string>("semantic");
-    const [chunkSize, setChunkSize] = useState<number>(512);
+    const [strategy, setStrategy] = useState<string>("recursive");
+    const [chunkSize, setChunkSize] = useState<number>(1024);
+    const [overlap, setOverlap] = useState<number>(0);
+    const [similarityThreshold, setSimilarityThreshold] = useState<number>(0.5);
+    const [minSentencesPerChunk, setMinSentencesPerChunk] = useState<number>(2);
     const [tokenizer, setTokenizer] = useState<string>("gpt2");
     const [generateEmbeddings, setGenerateEmbeddings] = useState<boolean>(false);
     const [embeddingProvider, setEmbeddingProvider] = useState<string>("sentence-transformers");
@@ -118,6 +121,9 @@ export default function ChunkingPreview() {
                     strategy,
                     max_chunk_size: chunkSize,
                     tokenizer,
+                    overlap,
+                    similarity_threshold: strategy === "semantic" ? similarityThreshold : undefined,
+                    min_sentences_per_chunk: strategy === "semantic" ? minSentencesPerChunk : undefined,
                     generate_embeddings: generateEmbeddings,
                     embedding_provider: embeddingProvider,
                     embedding_model: embeddingModel,
@@ -204,12 +210,58 @@ export default function ChunkingPreview() {
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="overlap">Overlap (tokens)</Label>
+                            <input
+                                id="overlap"
+                                type="number"
+                                value={overlap}
+                                onChange={(e) => setOverlap(Number(e.target.value))}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                min={0}
+                                max={chunkSize / 2}
+                            />
+                        </div>
                     </div>
+
+                    {/* Semantic Strategies Tuning */}
+                    {strategy === "semantic" && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                            <div className="space-y-2">
+                                <div className="flex justify-between">
+                                    <Label htmlFor="threshold">Similarity Threshold: {similarityThreshold}</Label>
+                                    <span className="text-xs text-muted-foreground">Higher = More chunks</span>
+                                </div>
+                                <input
+                                    id="threshold"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    value={similarityThreshold}
+                                    onChange={(e) => setSimilarityThreshold(Number(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="minSen">Min Sentences Per Chunk</Label>
+                                <input
+                                    id="minSen"
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    value={minSentencesPerChunk}
+                                    onChange={(e) => setMinSentencesPerChunk(Number(e.target.value))}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Embedding Option */}
                     <div className="flex items-center space-x-2 pt-2">
                         <input
-                            id="embeddings"
                             type="checkbox"
                             checked={generateEmbeddings}
                             onChange={(e) => setGenerateEmbeddings(e.target.checked)}
@@ -250,6 +302,12 @@ export default function ChunkingPreview() {
                                             <SelectItem value="all-MiniLM-L6-v2">
                                                 all-MiniLM-L6-v2 (384D, ⚡ Fastest)
                                             </SelectItem>
+                                            <SelectItem value="minishlab/potion-base-8M">
+                                                potion-base-8M (256D, 🧪 Chonkie Recommended)
+                                            </SelectItem>
+                                            <SelectItem value="minishlab/potion-retrieval-32M">
+                                                potion-retrieval-32M (256D, 🧪 Chonkie Recommended)
+                                            </SelectItem>
                                             <SelectItem value="all-mpnet-base-v2">
                                                 all-mpnet-base-v2 (768D, 🎯 Balanced)
                                             </SelectItem>
@@ -262,8 +320,8 @@ export default function ChunkingPreview() {
                                             <SelectItem value="multi-qa-mpnet-base-dot-v1">
                                                 multi-qa-mpnet (768D, 💬 Q&A Optimized)
                                             </SelectItem>
-                                            <SelectItem value="paraphrase-multilingual-MiniLM-L12-v2">
-                                                multilingual-MiniLM (384D, 🌍 Multilingual)
+                                            <SelectItem value="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2">
+                                                multilingual-MiniLM (384D, 🌍 50+ Languages)
                                             </SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -382,184 +440,188 @@ export default function ChunkingPreview() {
             </Card>
 
             {/* Topic Search Section */}
-            {chunks.length > 0 && (
-                <Card className="border-blue-200 bg-blue-50/20">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            🔍 Topic Search
-                        </CardTitle>
-                        <CardDescription>
-                            Search within the generated chunks by topic. High-ranking content appears first.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex gap-4 items-end">
-                            <div className="flex-1 space-y-2">
-                                <Label htmlFor="searchTopics">Topics (comma separated)</Label>
-                                <Input
-                                    id="searchTopics"
-                                    placeholder="e.g. machine learning, neural networks"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                            </div>
-                            <div className="w-32 space-y-2">
-                                <Label htmlFor="minRank">Min Rank: {minRank}</Label>
-                                <input
-                                    id="minRank"
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    step="5"
-                                    value={minRank}
-                                    onChange={(e) => setMinRank(Number(e.target.value))}
-                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                />
-                            </div>
-                            <Button onClick={handleSearch} disabled={searchLoading || !searchQuery.trim()}>
-                                {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-                            </Button>
-                        </div>
-
-                        {/* Search Results */}
-                        {searchResults && (
-                            <div className="space-y-4 mt-4">
-                                <div className="flex justify-between items-center">
-                                    <h4 className="text-sm font-semibold text-muted-foreground">
-                                        Found {searchResults.total_results} results
-                                    </h4>
+            {
+                chunks.length > 0 && (
+                    <Card className="border-blue-200 bg-blue-50/20">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                🔍 Topic Search
+                            </CardTitle>
+                            <CardDescription>
+                                Search within the generated chunks by topic. High-ranking content appears first.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex gap-4 items-end">
+                                <div className="flex-1 space-y-2">
+                                    <Label htmlFor="searchTopics">Topics (comma separated)</Label>
+                                    <Input
+                                        id="searchTopics"
+                                        placeholder="e.g. machine learning, neural networks"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
                                 </div>
-                                <div className="space-y-4">
-                                    {searchResults.chunks.map((chunk) => (
-                                        <div
-                                            key={chunk.index}
-                                            className="p-4 border border-blue-200 rounded-lg bg-white shadow-sm space-y-2"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <Badge className="bg-blue-600 hover:bg-blue-700">
-                                                        Rank: {chunk.rank}/100
-                                                    </Badge>
-                                                    <Badge variant="outline">Chunk #{chunk.index + 1}</Badge>
-                                                </div>
-                                                {/* Topic matches highlighting could go here */}
-                                            </div>
-
-                                            <div className="flex flex-wrap gap-2 my-2">
-                                                {chunk.topics?.map((topic, i) => {
-                                                    const isMatch = searchQuery.toLowerCase().includes(topic.toLowerCase());
-                                                    return (
-                                                        <Badge
-                                                            key={i}
-                                                            variant="secondary"
-                                                            className={isMatch ? "bg-yellow-100 text-yellow-800 border-yellow-200" : ""}
-                                                        >
-                                                            #{topic}
-                                                        </Badge>
-                                                    );
-                                                })}
-                                            </div>
-
-                                            <pre className="whitespace-pre-wrap text-sm font-mono bg-slate-50 p-3 rounded border">
-                                                {chunk.content}
-                                            </pre>
-                                        </div>
-                                    ))}
+                                <div className="w-32 space-y-2">
+                                    <Label htmlFor="minRank">Min Rank: {minRank}</Label>
+                                    <input
+                                        id="minRank"
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        step="5"
+                                        value={minRank}
+                                        onChange={(e) => setMinRank(Number(e.target.value))}
+                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                    />
                                 </div>
+                                <Button onClick={handleSearch} disabled={searchLoading || !searchQuery.trim()}>
+                                    {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                                </Button>
                             </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
 
-            {/* Results */}
-            {chunks.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Chunks ({chunks.length})</CardTitle>
-                        <CardDescription>
-                            Total of {chunks.reduce((sum, c) => sum + c.token_count, 0)} tokens across {chunks.length} chunks
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {chunks.map((chunk) => (
-                            <div
-                                key={chunk.index}
-                                className="p-4 border rounded-lg bg-muted/30 space-y-2"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <Badge variant="secondary">Chunk #{chunk.index + 1}</Badge>
-                                    <div className="flex gap-2">
-                                        <Badge variant="outline">{chunk.token_count} tokens</Badge>
-                                        {chunk.embedding_dim && (
-                                            <Badge variant="default" className="bg-green-600">
-                                                {chunk.embedding_dim}D embedding
-                                            </Badge>
-                                        )}
-                                        {chunk.start_index !== undefined && chunk.end_index !== undefined && (
-                                            <Badge variant="outline">
-                                                chars {chunk.start_index}-{chunk.end_index}
-                                            </Badge>
-                                        )}
+                            {/* Search Results */}
+                            {searchResults && (
+                                <div className="space-y-4 mt-4">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="text-sm font-semibold text-muted-foreground">
+                                            Found {searchResults.total_results} results
+                                        </h4>
                                     </div>
-                                </div>
+                                    <div className="space-y-4">
+                                        {searchResults.chunks.map((chunk) => (
+                                            <div
+                                                key={chunk.index}
+                                                className="p-4 border border-blue-200 rounded-lg bg-white shadow-sm space-y-2"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge className="bg-blue-600 hover:bg-blue-700">
+                                                            Rank: {chunk.rank}/100
+                                                        </Badge>
+                                                        <Badge variant="outline">Chunk #{chunk.index + 1}</Badge>
+                                                    </div>
+                                                    {/* Topic matches highlighting could go here */}
+                                                </div>
 
-                                {/* Rank & Topics Display */}
-                                {(chunk.rank !== undefined || (chunk.topics && chunk.topics.length > 0)) && (
-                                    <div className="flex flex-wrap gap-2 items-center text-sm">
-                                        {chunk.rank !== undefined && (
-                                            <Badge variant={chunk.rank > 70 ? "default" : "secondary"} className={chunk.rank > 70 ? "bg-blue-600 hover:bg-blue-700" : ""}>
-                                                Rank: {chunk.rank}/100
-                                            </Badge>
-                                        )}
+                                                <div className="flex flex-wrap gap-2 my-2">
+                                                    {chunk.topics?.map((topic, i) => {
+                                                        const isMatch = searchQuery.toLowerCase().includes(topic.toLowerCase());
+                                                        return (
+                                                            <Badge
+                                                                key={i}
+                                                                variant="secondary"
+                                                                className={isMatch ? "bg-yellow-100 text-yellow-800 border-yellow-200" : ""}
+                                                            >
+                                                                #{topic}
+                                                            </Badge>
+                                                        );
+                                                    })}
+                                                </div>
 
-                                        {/* Topic Source Indicator */}
-                                        {chunk.metadata?.topic_source && (
-                                            <Badge variant="outline" className={`text-xs ${chunk.metadata.topic_source === 'gemini' ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
-                                                Source: {chunk.metadata.topic_source === 'gemini' ? 'Gemini AI' : 'Fallback'}
-                                            </Badge>
-                                        )}
-
-                                        {chunk.topics && chunk.topics.map((topic, i) => (
-                                            <Badge key={i} variant="outline" className="text-xs bg-background">
-                                                #{topic}
-                                            </Badge>
+                                                <pre className="whitespace-pre-wrap text-sm font-mono bg-slate-50 p-3 rounded border">
+                                                    {chunk.content}
+                                                </pre>
+                                            </div>
                                         ))}
                                     </div>
-                                )}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )
+            }
 
-                                <pre className="whitespace-pre-wrap text-sm font-mono bg-background p-3 rounded border">
-                                    {chunk.content}
-                                </pre>
-
-                                {/* Embedding Vector Display */}
-                                {chunk.embedding && chunk.embedding.length > 0 && (
-                                    <details className="mt-2">
-                                        <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                                            📊 View Embedding Vector ({chunk.embedding.length} dimensions)
-                                        </summary>
-                                        <div className="mt-2 p-3 bg-muted/50 rounded border text-xs font-mono max-h-40 overflow-y-auto">
-                                            <div className="text-xs text-muted-foreground mb-1">First 10 values:</div>
-                                            <div className="grid grid-cols-5 gap-2">
-                                                {chunk.embedding.slice(0, 10).map((val, idx) => (
-                                                    <div key={idx} className="text-right">
-                                                        {val.toFixed(4)}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                                                ... and {chunk.embedding.length - 10} more values
-                                            </div>
+            {/* Results */}
+            {
+                chunks.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Chunks ({chunks.length})</CardTitle>
+                            <CardDescription>
+                                Total of {chunks.reduce((sum, c) => sum + c.token_count, 0)} tokens across {chunks.length} chunks
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {chunks.map((chunk) => (
+                                <div
+                                    key={chunk.index}
+                                    className="p-4 border rounded-lg bg-muted/30 space-y-2"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <Badge variant="secondary">Chunk #{chunk.index + 1}</Badge>
+                                        <div className="flex gap-2">
+                                            <Badge variant="outline">{chunk.token_count} tokens</Badge>
+                                            {chunk.embedding_dim && (
+                                                <Badge variant="default" className="bg-green-600">
+                                                    {chunk.embedding_dim}D embedding
+                                                </Badge>
+                                            )}
+                                            {chunk.start_index !== undefined && chunk.end_index !== undefined && (
+                                                <Badge variant="outline">
+                                                    chars {chunk.start_index}-{chunk.end_index}
+                                                </Badge>
+                                            )}
                                         </div>
-                                    </details>
-                                )}
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
+                                    </div>
+
+                                    {/* Rank & Topics Display */}
+                                    {(chunk.rank !== undefined || (chunk.topics && chunk.topics.length > 0)) && (
+                                        <div className="flex flex-wrap gap-2 items-center text-sm">
+                                            {chunk.rank !== undefined && (
+                                                <Badge variant={chunk.rank > 70 ? "default" : "secondary"} className={chunk.rank > 70 ? "bg-blue-600 hover:bg-blue-700" : ""}>
+                                                    Rank: {chunk.rank}/100
+                                                </Badge>
+                                            )}
+
+                                            {/* Topic Source Indicator */}
+                                            {chunk.metadata?.topic_source && (
+                                                <Badge variant="outline" className={`text-xs ${chunk.metadata.topic_source === 'gemini' ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
+                                                    Source: {chunk.metadata.topic_source === 'gemini' ? 'Gemini AI' : 'Fallback'}
+                                                </Badge>
+                                            )}
+
+                                            {chunk.topics && chunk.topics.map((topic, i) => (
+                                                <Badge key={i} variant="outline" className="text-xs bg-background">
+                                                    #{topic}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <pre className="whitespace-pre-wrap text-sm font-mono bg-background p-3 rounded border">
+                                        {chunk.content}
+                                    </pre>
+
+                                    {/* Embedding Vector Display */}
+                                    {chunk.embedding && chunk.embedding.length > 0 && (
+                                        <details className="mt-2">
+                                            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                                                📊 View Embedding Vector ({chunk.embedding.length} dimensions)
+                                            </summary>
+                                            <div className="mt-2 p-3 bg-muted/50 rounded border text-xs font-mono max-h-40 overflow-y-auto">
+                                                <div className="text-xs text-muted-foreground mb-1">First 10 values:</div>
+                                                <div className="grid grid-cols-5 gap-2">
+                                                    {chunk.embedding.slice(0, 10).map((val, idx) => (
+                                                        <div key={idx} className="text-right">
+                                                            {val.toFixed(4)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                                                    ... and {chunk.embedding.length - 10} more values
+                                                </div>
+                                            </div>
+                                        </details>
+                                    )}
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )
+            }
 
 
-        </div>
+        </div >
     );
 }
