@@ -2,6 +2,8 @@
 
 This project uses a monorepo structure with a Next.js frontend and Python backend services.
 
+> **Quick Start**: New to the project? See **[GETTING_STARTED.md](GETTING_STARTED.md)** for a 5-minute setup guide!
+
 ## Project Structure
 
 ```
@@ -28,10 +30,11 @@ This project uses a monorepo structure with a Next.js frontend and Python backen
 
 ## Prerequisites
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
-- Python >= 3.9
-- Firebase CLI
+- **Node.js** >= 18.0.0
+- **pnpm** >= 8.0.0  
+- **Firebase CLI**
+- **Docker Desktop** (recommended) OR **Python** >= 3.11 (if not using Docker)
+- **Google Gemini API Key** (free) - Get one at https://aistudio.google.com/app/apikey
 
 ## Setup
 
@@ -41,8 +44,13 @@ This project uses a monorepo structure with a Next.js frontend and Python backen
 pnpm install
 ```
 
-### 2. Install Python Dependencies
+### 2. Choose Your Backend Setup
 
+**Option A: Docker (Recommended - No Python Install Needed)**
+- Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- Skip to Step 3
+
+**Option B: Local Python**
 ```bash
 cd services/ingestion
 pip install -r requirements.txt
@@ -88,7 +96,7 @@ GOOGLE_GENAI_USE_VERTEXAI=True
 
 #### Python Service (Ingestion)
 No manual `.env` needed - connects to emulators automatically.
-For Vertex AI embeddings, see `services/ingestion/VERTEX_AI_SETUP.md`.
+For Vertex AI embeddings, see **[VERTEX_AI_SETUP.md](services/ingestion/VERTEX_AI_SETUP.md)**.
 
 ## Running the Application
 
@@ -107,7 +115,7 @@ pnpm docker:ingestion
 pnpm dev:web
 ```
 
-See `services/ingestion/DOCKER.md` for full Docker documentation.
+📖 **Full Docker guide**: See **[DOCKER.md](services/ingestion/DOCKER.md)** for detailed documentation.
 
 ### Option 2: Local Python (Without Docker)
 
