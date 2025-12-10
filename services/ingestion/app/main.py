@@ -22,6 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Define allowed user roles for accessing the chunking endpoint
+ALLOWED_USER_ROLES = {'teacher', 'admin'}
+
 
 def auth_dependency(authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)):
     """Authenticate either via service API key or via user bearer token.

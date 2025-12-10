@@ -1,7 +1,7 @@
 {
-  "/api/assessment/route": "app/api/assessment/route.js",
-  "/page": "app/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/debug/chunking/page": "app/debug/chunking/page.js",
   "/login/page": "app/login/page.js",
-  "/student/page": "app/student/page.js",
-  "/student/assessments/page": "app/student/assessments/page.js"
+  "/onboarding/page": "app/onboarding/page.js",
+  "/student/page": "app/student/page.js"
 }
