@@ -10,6 +10,8 @@ services:
     volumes:
       # Mount source code for hot reload
       - ./app:/app/app
+    env_file:
+      - .env
     environment:
       # Firebase Emulator settings
       - FIRESTORE_EMULATOR_HOST=host.docker.internal:8080

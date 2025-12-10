@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SAMPLE_ML, SAMPLE_ARCHITECTURE } from "./samples";
 
 interface Chunk {
@@ -19,10 +21,17 @@ interface Chunk {
     end_index?: number;
     embedding?: number[];
     embedding_dim?: number;
+    topics?: string[];
+    rank?: number;
+    metadata?: {
+        topic_source?: string;
+        [key: string]: any;
+    };
 }
 
 interface ChunkResponse {
     chunks: Chunk[];
+    total_results?: number;
 }
 
 export default function ChunkingPreview() {
@@ -32,12 +41,57 @@ export default function ChunkingPreview() {
     const [error, setError] = useState<string | null>(null);
 
     // Chunking parameters
-    const [strategy, setStrategy] = useState<string>("recursive");
+    const [strategy, setStrategy] = useState<string>("semantic");
     const [chunkSize, setChunkSize] = useState<number>(512);
     const [tokenizer, setTokenizer] = useState<string>("gpt2");
     const [generateEmbeddings, setGenerateEmbeddings] = useState<boolean>(false);
     const [embeddingProvider, setEmbeddingProvider] = useState<string>("sentence-transformers");
     const [embeddingModel, setEmbeddingModel] = useState<string>("all-MiniLM-L6-v2");
+
+    // Enhanced features
+    const [extractTopics, setExtractTopics] = useState<boolean>(true);
+    const [rankContent, setRankContent] = useState<boolean>(true);
+    const [documentTitle, setDocumentTitle] = useState<string>("");
+
+    // Search state
+    const [searchQuery, setSearchQuery] = useState<string>("");
+    const [minRank, setMinRank] = useState<number>(50);
+    const [searchResults, setSearchResults] = useState<ChunkResponse & { total_results: number } | null>(null);
+    const [searchLoading, setSearchLoading] = useState<boolean>(false);
+
+    const handleSearch = async () => {
+        if (!searchQuery.trim()) return;
+
+        setSearchLoading(true);
+        setError(null);
+
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+            const topics = searchQuery.split(',').map(t => t.trim()).filter(Boolean);
+
+            const response = await fetch(`${apiUrl}/v1/search/topics`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    topics,
+                    min_rank: minRank,
+                    limit: 10
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `Search failed: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            setSearchResults(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Search failed");
+        } finally {
+            setSearchLoading(false);
+        }
+    };
 
     const handleChunk = async () => {
         if (!markdown.trim()) {
@@ -67,6 +121,9 @@ export default function ChunkingPreview() {
                     generate_embeddings: generateEmbeddings,
                     embedding_provider: embeddingProvider,
                     embedding_model: embeddingModel,
+                    extract_topics: extractTopics,
+                    rank_content: rankContent,
+                    document_title: documentTitle || undefined,
                 }),
             });
 
@@ -88,8 +145,10 @@ export default function ChunkingPreview() {
     const loadSample = (sampleNum: number) => {
         if (sampleNum === 1) {
             setMarkdown(SAMPLE_ML);
+            setDocumentTitle("Introduction to Machine Learning");
         } else if (sampleNum === 2) {
             setMarkdown(SAMPLE_ARCHITECTURE);
+            setDocumentTitle("System Architecture Overview");
         }
     };
 
@@ -228,6 +287,45 @@ export default function ChunkingPreview() {
                         </div>
                     )}
 
+                    {/* Enhanced Features Options */}
+                    <div className="space-y-4 pt-2 border-t">
+                        <Label className="text-base font-semibold">Enhanced Features</Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="extractTopics"
+                                    checked={extractTopics}
+                                    onCheckedChange={(checked) => setExtractTopics(checked as boolean)}
+                                />
+                                <Label htmlFor="extractTopics" className="cursor-pointer">
+                                    Extract Topics (uses Gemini)
+                                </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="rankContent"
+                                    checked={rankContent}
+                                    onCheckedChange={(checked) => setRankContent(checked as boolean)}
+                                />
+                                <Label htmlFor="rankContent" className="cursor-pointer">
+                                    Rank Content Relevance
+                                </Label>
+                            </div>
+                        </div>
+
+                        {(rankContent || extractTopics) && (
+                            <div className="space-y-2">
+                                <Label htmlFor="docTitle">Document Title (Context for ranking/extraction)</Label>
+                                <Input
+                                    id="docTitle"
+                                    placeholder="e.g. Introduction to Machine Learning"
+                                    value={documentTitle}
+                                    onChange={(e) => setDocumentTitle(e.target.value)}
+                                />
+                            </div>
+                        )}
+                    </div>
+
                     <Separator />
 
                     {/* Input */}
@@ -314,6 +412,31 @@ export default function ChunkingPreview() {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Rank & Topics Display */}
+                                {(chunk.rank !== undefined || (chunk.topics && chunk.topics.length > 0)) && (
+                                    <div className="flex flex-wrap gap-2 items-center text-sm">
+                                        {chunk.rank !== undefined && (
+                                            <Badge variant={chunk.rank > 70 ? "default" : "secondary"} className={chunk.rank > 70 ? "bg-blue-600 hover:bg-blue-700" : ""}>
+                                                Rank: {chunk.rank}/100
+                                            </Badge>
+                                        )}
+
+                                        {/* Topic Source Indicator */}
+                                        {chunk.metadata?.topic_source && (
+                                            <Badge variant="outline" className={`text-xs ${chunk.metadata.topic_source === 'gemini' ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
+                                                Source: {chunk.metadata.topic_source === 'gemini' ? 'Gemini AI' : 'Fallback'}
+                                            </Badge>
+                                        )}
+
+                                        {chunk.topics && chunk.topics.map((topic, i) => (
+                                            <Badge key={i} variant="outline" className="text-xs bg-background">
+                                                #{topic}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
+
                                 <pre className="whitespace-pre-wrap text-sm font-mono bg-background p-3 rounded border">
                                     {chunk.content}
                                 </pre>
@@ -341,6 +464,97 @@ export default function ChunkingPreview() {
                                 )}
                             </div>
                         ))}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Topic Search Section */}
+            {chunks.length > 0 && (
+                <Card className="border-blue-200 bg-blue-50/20">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            🔍 Topic Search
+                        </CardTitle>
+                        <CardDescription>
+                            Search within the generated chunks by topic. High-ranking content appears first.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex gap-4 items-end">
+                            <div className="flex-1 space-y-2">
+                                <Label htmlFor="searchTopics">Topics (comma separated)</Label>
+                                <Input
+                                    id="searchTopics"
+                                    placeholder="e.g. machine learning, neural networks"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                            <div className="w-32 space-y-2">
+                                <Label htmlFor="minRank">Min Rank: {minRank}</Label>
+                                <input
+                                    id="minRank"
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    step="5"
+                                    value={minRank}
+                                    onChange={(e) => setMinRank(Number(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                />
+                            </div>
+                            <Button onClick={handleSearch} disabled={searchLoading || !searchQuery.trim()}>
+                                {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                            </Button>
+                        </div>
+
+                        {/* Search Results */}
+                        {searchResults && (
+                            <div className="space-y-4 mt-4">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-sm font-semibold text-muted-foreground">
+                                        Found {searchResults.total_results} results
+                                    </h4>
+                                </div>
+                                <div className="space-y-4">
+                                    {searchResults.chunks.map((chunk) => (
+                                        <div
+                                            key={chunk.index}
+                                            className="p-4 border border-blue-200 rounded-lg bg-white shadow-sm space-y-2"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Badge className="bg-blue-600 hover:bg-blue-700">
+                                                        Rank: {chunk.rank}/100
+                                                    </Badge>
+                                                    <Badge variant="outline">Chunk #{chunk.index + 1}</Badge>
+                                                </div>
+                                                {/* Topic matches highlighting could go here */}
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2 my-2">
+                                                {chunk.topics?.map((topic, i) => {
+                                                    const isMatch = searchQuery.toLowerCase().includes(topic.toLowerCase());
+                                                    return (
+                                                        <Badge
+                                                            key={i}
+                                                            variant="secondary"
+                                                            className={isMatch ? "bg-yellow-100 text-yellow-800 border-yellow-200" : ""}
+                                                        >
+                                                            #{topic}
+                                                        </Badge>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <pre className="whitespace-pre-wrap text-sm font-mono bg-slate-50 p-3 rounded border">
+                                                {chunk.content}
+                                            </pre>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             )}

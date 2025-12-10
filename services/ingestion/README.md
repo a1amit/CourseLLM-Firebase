@@ -1,128 +1,105 @@
-# Chunker Microservice
+# Ingestion Service
 
-This microservice provides a REST API for deterministic, structure-aware Markdown chunking.
+This microservice handles the processing, chunking, and semantic analysis of educational content.
 
-Features:
-- FastAPI application with OpenAPI/Swagger UI available at `/docs` and `/redoc`.
-- Authentication: JWT-based user roles (student/teacher/admin) and an optional `X-API-Key` for service-to-service calls.
-- Configurable `MAX_CHUNK_SIZE` via environment variable or per-request override.
+## Features
 
-Quick start (development):
+- **Semantic Chunking**: Intelligently groups related content using [Chonkie](https://github.com/chonkie-inc/chonkie).
+- **Topic Extraction**: Uses Google Gemini (LLM) to extract key topics from every chunk.
+- **Content Ranking**: Assigns a relevance score (0-100) based on semantic importance and structure.
+- **Topic Search**: Search across processed chunks by topic with rank-based sorting.
+- **Embeddings**: Generates vector embeddings using Sentence Transformers (local) or Vertex AI (cloud).
+- **FastAPI**: High-performance Python API.
+
+## API Endpoints
+
+### 1. Chunking Endpoint
+`POST /v1/chunk`
+
+**Request:**
+```json
+{
+  "markdown": "# Machine Learning\n\nIntroduction...",
+  "strategy": "semantic",
+  "max_chunk_size": 768,
+  "extract_topics": true,
+  "rank_content": true,
+  "document_title": "ML Basics",
+  "generate_embeddings": true
+}
+```
+
+**Response:**
+```json
+{
+  "chunks": [
+    {
+      "index": 0,
+      "content": "...",
+      "token_count": 150,
+      "topics": ["machine learning", "artificial intelligence"],
+      "rank": 95.5,
+      "metadata": {
+        "topic_source": "gemini"
+      },
+      "embedding": [...]
+    }
+  ]
+}
+```
+
+### 2. Topic Search Endpoint
+`POST /v1/search/topics` (Development only - in-memory)
+
+**Request:**
+```json
+{
+  "topics": ["neural networks", "deep learning"],
+  "min_rank": 50,
+  "limit": 10
+}
+```
+
+## Configuration
+
+Required environment variables in `.env` (or `.env.local` in root):
+
+### Core
+- `GOOGLE_GENAI_API_KEY`: Your Gemini API Key from [Google AI Studio](https://aistudio.google.com/app/apikey). **Required for topic extraction.** (Can also be set as `GOOGLE_API_KEY`).
+
+### Firebase Emulators (Development)
+- `FIRESTORE_EMULATOR_HOST=host.docker.internal:8080`
+- `FIREBASE_STORAGE_EMULATOR_HOST=host.docker.internal:9199`
+
+### Vertex AI (Optional - for production embeddings)
+- `GOOGLE_CLOUD_PROJECT`: GCP Project ID
+- `GOOGLE_CLOUD_LOCATION`: e.g. `us-central1`
+- `GOOGLE_GENAI_USE_VERTEXAI`: `True`
+
+## Running locally
+
+### With Docker (Recommended)
+This method handles all dependencies automatically.
 
 ```bash
-# from repository root
-cd services/chunker
-python -m venv .venv
-source .venv/bin/activate
+# From project root
+pnpm docker:ingestion
+```
+
+### With Python (Direct)
+Requires Python 3.11+.
+
+```bash
+cd services/ingestion
 pip install -r requirements.txt
-UVICORN_HOST=0.0.0.0 UVICORN_PORT=8000 CHUNKER_SECRET=devsecret SERVICE_API_KEY=devkey uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8000
 ```
 
-API endpoints:
-- `POST /v1/chunk` - Chunk a markdown document. Requires authentication.
-- `GET /v1/health` - Health check.
+## Testing
 
-Configuration (env vars):
-- `CHUNKER_SECRET` - HS256 secret used to validate local/dev JWTs for testing only.
-- `SERVICE_API_KEY` - Optional API key for service-to-service authentication.
-- `MAX_CHUNK_SIZE` - Optional integer to set default max chunk characters (default 1000).
-- `GOOGLE_APPLICATION_CREDENTIALS` - (Optional) Path to a Google Cloud service account JSON key. If set, the service will use `firebase-admin` to verify Firebase ID tokens issued by the project's Authentication service.
-
-Authentication notes:
-- This repository uses Firebase for user authentication (see `src/lib/authService.ts`). The Chunker microservice does NOT call that client-side helper directly (it's a browser/client library). Instead, the microservice verifies Firebase ID tokens server-side using the `firebase-admin` SDK. To enable full Firebase verification in production, provide valid credentials via `GOOGLE_APPLICATION_CREDENTIALS` or use platform-provided application default credentials.
-- In development, if `firebase-admin` is not configured, the service will fall back to local HS256 token verification using `CHUNKER_SECRET` (useful for tests), or accept a valid `X-API-Key` for service-to-service calls.
-
-Service-to-service security (recommendation):
-- The current prototype accepts a static `X-API-Key` for service-to-service calls. For production deployments we strongly recommend replacing this with platform-managed identities (Workload Identity on GCP, IAM service accounts, or mutual TLS) rather than static API keys. See `SETUP.md` for notes on Workload Identity.
-
-Use the interactive docs at `http://localhost:8000/docs` to explore request/response shapes and try secured endpoints (you can pass `Authorization: Bearer <token>` or `X-API-Key: <key>`).
-
-Running & testing (recommended order)
-
-How to run locally:
-NOTE: If runnig from codespace or firebase studio, add the domains to allowed list.
-
-1) run: docker compose -f services/chunker/docker-compose.yml up --build
-This will run the chunker service.
-2) run: npm run dev
-This will run the app
-3) You can now use api calls to the chunker fpr example:
-	3.1) curl -X POST http://localhost:8000/v1/chunk \
-  		-H "Content-Type: application/json" \
-  		-H "X-API-Key: devkey" \
-  		-d '{"markdown":"# Hello\n\nThis is a test."}'
-	Direct access
-
-	3.2) curl -v -X POST http://localhost:9002/api/chunk-proxy \
-  		-H "Content-Type: application/json" \
-  		-d '{"markdown":"# Hello\n\nThis is a test."}'
-	API access
-
-1) Start the chunker service first (so any callers can reach it).
-
-Option A — Local Python virtualenv (recommended for development):
+Run the included test suite:
 
 ```bash
-# from repo root
-cd services/chunker
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# start the chunker (dev keys shown for local testing)
-SERVICE_API_KEY=devkey CHUNKER_SECRET=devsecret uvicorn app.main:app --reload --port 8000
+cd services/ingestion
+pytest
 ```
-
-Option B — Docker (build+run) with `docker-compose` (useful to isolate runtime):
-
-```bash
-# from repo root
-cd services/chunker
-docker compose up --build
-```
-
-2) Start the Next.js app (frontend) after the chunker is running.
-
-```bash
-# from repo root
-export CHUNKER_URL=http://localhost:8000/v1/chunk
-export CHUNKER_SERVICE_API_KEY=devkey
-npm run dev
-```
-
-Notes about order and why we recommend starting chunker first
-- The Next app can be built without the chunker running (build step does not call the service).
-- However, runtime flows that depend on chunking (the proxy `/api/chunk-proxy` or indexing flows) will fail if chunker is not reachable. Starting chunker first avoids encountering runtime errors during development.
-
-Testing the service
-- The repo includes pytest tests for the chunker service located at `services/chunker/tests/`.
-	- They exercise the chunker code and the FastAPI endpoints using TestClient.
-
-Run tests:
-```bash
-cd services/chunker
-source .venv/bin/activate       # if you created the venv earlier
-pip install pytest
-pytest -q
-```
-
-Using the Next.js proxy
-- For browser-based workflows, call the Next endpoint `POST /api/chunk-proxy` (the server-side Next route will forward to the chunker using a server-side service key). This keeps the chunker internal-only and hides credentials from the browser.
-
-Example cURL (direct to chunker):
-```bash
-curl -X POST http://localhost:8000/v1/chunk \
-	-H "Content-Type: application/json" \
-	-H "X-API-Key: devkey" \
-	-d '{"markdown":"# Hello\n\nWorld","max_chunk_size":400}'
-```
-
-Example cURL (via Next proxy):
-```bash
-curl -X POST http://localhost:9002/api/chunk-proxy \
-	-H "Content-Type: application/json" \
-	-d '{"markdown":"# Hello\n\nWorld","max_chunk_size":400}'
-```
-
-Production note
-- Replace `X-API-Key` with Workload Identity / IAM for service-to-service authentication in production. See `SETUP.md` for guidance.

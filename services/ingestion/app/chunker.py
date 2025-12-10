@@ -85,8 +85,8 @@ class ChonkieChunker:
 
 def chunk_markdown(
     markdown: str,
-    strategy: str = "recursive",
-    max_chunk_size: int = 512,
+    strategy: str = "semantic",
+    max_chunk_size: int = 768,
     tokenizer: str = "gpt2"
 ) -> List[Dict[str, Any]]:
     """

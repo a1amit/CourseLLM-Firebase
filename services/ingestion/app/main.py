@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
-from .schemas import ChunkRequest, ChunkResponse, HealthResponse
+from .schemas import ChunkRequest, ChunkResponse, HealthResponse, TopicSearchRequest, TopicSearchResponse
 from .chunker import chunk_markdown
 from .config import DEFAULT_MAX_CHUNK_SIZE
 from .auth import verify_service_api_key, require_authenticated_user
@@ -64,13 +64,13 @@ def chunk_endpoint(request: ChunkRequest):
     """
     Public endpoint for chunking markdown text.
     
-    Optionally generates embeddings for each chunk.
+    Optionally generates embeddings, extracts topics, and ranks chunks.
     
     This endpoint is publicly accessible for development and testing purposes.
     For production, consider adding authentication or rate limiting.
     """
     max_size = request.max_chunk_size if request.max_chunk_size is not None else DEFAULT_MAX_CHUNK_SIZE
-    strategy = request.strategy if request.strategy else "recursive"
+    strategy = request.strategy if request.strategy else "semantic"
     tokenizer = request.tokenizer if request.tokenizer else "gpt2"
 
     # Generate chunks
@@ -80,6 +80,39 @@ def chunk_endpoint(request: ChunkRequest):
         max_chunk_size=max_size,
         tokenizer=tokenizer
     )
+    
+    # Extract topics if requested
+    if request.extract_topics:
+        try:
+            from .topic_extractor import extract_topics_from_chunks
+            
+            chunks = extract_topics_from_chunks(chunks, max_topics=5)
+        except ImportError as error:
+            if "google-genai" in str(error):
+                error_msg = "Topic extraction requires google-genai SDK. Install with: pip install google-genai"
+                raise HTTPException(status_code=400, detail=error_msg)
+            else:
+                error_msg = f"Missing dependency for topic extraction: {str(error)}"
+                raise HTTPException(status_code=400, detail=error_msg)
+        except Exception as error:
+            # Log warning but continue without topics
+            print(f"Warning: Topic extraction failed: {error}")
+            # Set empty topics for all chunks
+            for chunk in chunks:
+                chunk['topics'] = []
+    
+    # Rank content if requested
+    if request.rank_content:
+        try:
+            from .ranker import rank_chunks
+            
+            chunks = rank_chunks(chunks, document_title=request.document_title)
+        except Exception as error:
+            # Log warning but continue without ranking
+            print(f"Warning: Content ranking failed: {error}")
+            # Set default rank for all chunks
+            for chunk in chunks:
+                chunk['rank'] = 0.0
     
     # Optionally generate embeddings
     if request.generate_embeddings:
@@ -143,7 +176,51 @@ def chunk_endpoint(request: ChunkRequest):
                     detail=f"Embedding generation failed: {error_str}"
                 )
     
+    # Store chunks in memory for topic search (development only)
+    global _chunk_store
+    _chunk_store = chunks.copy()
+    
     return {'chunks': chunks}
+
+
+# In-memory storage for demonstration (replace with database in production)
+_chunk_store = []
+
+
+@app.post('/v1/search/topics', response_model=TopicSearchResponse, summary='Search Chunks by Topics')
+def search_topics_endpoint(request: TopicSearchRequest):
+    """
+    Search for chunks by topics and rank.
+    
+    Note: This is an in-memory implementation for development.
+    For production, integrate with Firestore or another database.
+    
+    To use this endpoint:
+    1. First call /v1/chunk to create chunks (they'll be stored in memory)
+    2. Then call this endpoint to search by topics
+    """
+    search_topics_lower = [t.lower() for t in request.topics]
+    
+    # Filter chunks that match any of the requested topics
+    matching_chunks = []
+    for chunk in _chunk_store:
+        chunk_topics = [t.lower() for t in chunk.get('topics', [])]
+        # Check if any topic matches
+        if any(search_topic in chunk_topics for search_topic in search_topics_lower):
+            # Check rank threshold
+            if chunk.get('rank', 0.0) >= request.min_rank:
+                matching_chunks.append(chunk)
+    
+    # Sort by rank (descending)
+    matching_chunks.sort(key=lambda x: x.get('rank', 0.0), reverse=True)
+    
+    # Apply limit
+    limited_chunks = matching_chunks[:request.limit]
+    
+    return {
+        'chunks': limited_chunks,
+        'total_results': len(matching_chunks)
+    }
 
 
 def custom_openapi():

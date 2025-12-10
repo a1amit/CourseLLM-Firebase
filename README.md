@@ -163,6 +163,9 @@ Access the chunking debug tool at `http://localhost:9002/debug/chunking` (requir
 **Features:**
 - Test different chunking strategies (Recursive, Semantic, Token)
 - Adjust chunk size and  tokenizer (GPT-2, GPT-4, GPT-4o)
+- **Topic Extraction**: See extracted topics for each chunk (Gemini-powered)
+- **Content Ranking**: View relevance scores for each chunk
+- **Topic Search**: Filter and search chunks by topic and rank
 - Generate embeddings with dual providers:
   - **Sentence Transformers** (Local): 6 top MTEB models
   - **Vertex AI** (Cloud): Production-grade embeddings
