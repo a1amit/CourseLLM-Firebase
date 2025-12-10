@@ -1,0 +1,19 @@
+{
+  "node": {
+    "406af42400bf19d2cd4589640b08d3ebdc98a97350": {
+      "workers": {
+        "app/api/assessment/route": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.7_@opentelemetry+_93b4fe362c3dacda71e2247366f05134/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22D%3A%5C%5CProjects%5C%5CWeb%20Projects%5C%5CCourseLLM-Firebase%5C%5Capps%5C%5Cweb%5C%5Csrc%5C%5Cai%5C%5Cflows%5C%5Cpersonalized-learning-assessment.ts%22%2C%5B%7B%22id%22%3A%22406af42400bf19d2cd4589640b08d3ebdc98a97350%22%2C%22exportedName%22%3A%22generatePersonalizedAssessment%22%2C%22filename%22%3A%22..%2FD%3A%5C%5CProjects%5C%5CWeb%20Projects%5C%5CCourseLLM-Firebase%5C%5Capps%5C%5Cweb%5C%5Csrc%5C%5Cai%5C%5Cflows%5C%5Cpersonalized-learning-assessment.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": true
+        }
+      },
+      "layer": {
+        "app/api/assessment/route": "rsc"
+      },
+      "filename": "../D:\\Projects\\Web Projects\\CourseLLM-Firebase\\apps\\web\\src\\ai\\flows\\personalized-learning-assessment.ts",
+      "exportedName": "generatePersonalizedAssessment"
+    }
+  },
+  "edge": {},
+  "encryptionKey": "oVAolQ5y5rPBw6z/1kz1TeL6yiqLzLZPxOXbcjClKNs="
+}

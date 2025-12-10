@@ -1,159 +1,228 @@
-# CourseLLM
+# CourseLLM Monorepo
 
-## Purpose
-CourseLLM (Coursewise) is an educational platform that leverages AI to provide personalized learning experiences. 
-It is intended for Undergraduate University Courses and is being tested on Computer Science courses.
+This project uses a monorepo structure with a Next.js frontend and Python backend services.
 
-To get started, take a look at src/app/page.tsx.
+## Project Structure
 
-## 🚀 Local Development
+```
+/
+├── apps/
+│   └── web/              # Next.js Application
+│       ├── .env.local    # Next.js environment variables
+│       └── src/...
+├── services/
+│   └── ingestion/        # Python Ingestion Service (FastAPI)
+│       ├── Dockerfile    # Container configuration
+│       ├── docker-compose.yml
+│       ├── app/
+│       │   ├── main.py
+│       │   ├── chunker.py       # Chonkie integration
+│       │   ├── embeddings.py    # Dual-provider embeddings
+│       │   └── schemas.py
+│       └── requirements.txt
+├── packages/             # Shared libraries (future use)
+├── .env.local            # Root-level environment (Firebase emulators)
+├── pnpm-workspace.yaml   # Workspace configuration
+└── firebase.json         # Firebase configuration
+```
 
-### Prerequisites
-- Node.js 18+
-- pnpm (`npm install -g pnpm`)
-- Firebase CLI (`npm install -g firebase-tools`)
-- Google Cloud account (for production deployment)
+## Prerequisites
 
-### Quick Start
+- Node.js >= 18.0.0
+- pnpm >= 8.0.0
+- Python >= 3.9
+- Firebase CLI
 
-**1. Install Dependencies**
+## Setup
+
+### 1. Install JavaScript Dependencies
+
 ```bash
 pnpm install
 ```
 
-**2. Configure Environment Variables**
+### 2. Install Python Dependencies
+
 ```bash
-cp .env.local.example .env.local
-```
-Edit `.env.local` with your Firebase project credentials. For local development with emulators, ensure:
-```env
-NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
+cd services/ingestion
+pip install -r requirements.txt
 ```
 
-**3. Start Firebase Emulators**
+### 3. Environment Configuration
+
+#### Understanding `.env.local` Files in Monorepo
+
+This monorepo has **two separate** `.env.local` files:
+
+1. **Root `.env.local`** - For Firebase emulators and global config
+2. **`apps/web/.env.local`** - For Next.js app (API keys, etc.)
+
+Each app reads its own `.env.local` file, not the root one!
+
+#### Setup Steps
+
+**1. Root Environment (Firebase Emulators)**
+```bash
+cp .env.local.example .env.local
+# Configure Firebase settings
+```
+
+**2. Next.js Environment (API Keys & Config)**
+```bash
+cd apps/web
+cp ../../.env.local.example .env.local
+```
+
+Edit `apps/web/.env.local` and add:
+```bash
+# Required for chat and assessment features
+GOOGLE_API_KEY=your_gemini_api_key_here
+
+# Optional: For Vertex AI embeddings
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_GENAI_USE_VERTEXAI=True
+```
+
+**Get a Gemini API key**: https://aistudio.google.com/app/apikey
+
+#### Python Service (Ingestion)
+No manual `.env` needed - connects to emulators automatically.
+For Vertex AI embeddings, see `services/ingestion/VERTEX_AI_SETUP.md`.
+
+## Running the Application
+
+### Option 1: With Docker (Recommended)
+
+**Benefits**: No Python installation needed, consistent environment, easy cleanup.
+
+```bash
+# Terminal 1: Firebase Emulators
+firebase emulators:start
+
+# Terminal 2: Ingestion Service (Docker)
+pnpm docker:ingestion
+
+# Terminal 3: Next.js Frontend  
+pnpm dev:web
+```
+
+See `services/ingestion/DOCKER.md` for full Docker documentation.
+
+### Option 2: Local Python (Without Docker)
+
+```bash
+# Terminal 1: Firebase Emulators
+firebase emulators:start
+
+# Terminal 2: Ingestion Service (Local)
+pnpm dev:ingestion
+
+# Terminal 3: Next.js Frontend
+pnpm dev:web
+```
+
+### Option 3: Run Services Individually
+
+**Frontend only:**
+```bash
+cd apps/web
+pnpm dev
+```
+
+**Backend only (Docker):**
+```bash
+pnpm docker:ingestion
+```
+
+**Backend only (Local Python):**
+```bash
+cd services/ingestion
+uvicorn app.main:app --reload --port 8000
+```
+
+**Firebase Emulators:**
 ```bash
 firebase emulators:start
 ```
-This starts local emulators for Auth, Firestore, and Storage. The Emulator UI is available at **http://localhost:4000**.
 
-| Service   | Port |
-|-----------|------|
-| Auth      | 9099 |
-| Firestore | 8080 |
-| Storage   | 9199 |
-| UI        | 4000 |
+## Features
 
-**4. Start the Development Server**
-In a separate terminal:
+### Chunking Visualizer
+
+Access the chunking debug tool at `http://localhost:9002/debug/chunking` (requires login).
+
+**Features:**
+- Test different chunking strategies (Recursive, Semantic, Token)
+- Adjust chunk size and  tokenizer (GPT-2, GPT-4, GPT-4o)
+- Generate embeddings with dual providers:
+  - **Sentence Transformers** (Local): 6 top MTEB models
+  - **Vertex AI** (Cloud): Production-grade embeddings
+- Load sample documents (ML intro, App architecture)
+- Visualize chunks with token counts and embedding vectors
+
+### Embedding Models Available  
+
+**Local (Sentence Transformers):**
+1. all-MiniLM-L6-v2 (384D) - ⚡ Fastest
+2. all-mpnet-base-v2 (768D) - 🎯 Balanced
+3. bge-large-en-v1.5 (1024D) - 🏆 Top Quality
+4. stella_en_1.5B_v5 (1024D) - 🚀 Best Overall
+5. multi-qa-mpnet (768D) - 💬 Q&A Optimized
+6. multilingual-MiniLM (384D) - 🌍 50+ Languages
+
+**Cloud (Vertex AI):**
+- gemini-embedding-001 (768D) - Google's latest
+- Requires Google Cloud credentials
+
+## Chunking Strategies
+
+The system uses [Chonkie](https://github.com/chonkie-inc/chonkie) for text chunking:
+
+- **Recursive**: Splits text recursively while preserving structure
+- **Semantic**: Groups semantically related content together
+- **Token**: Simple token-based chunking
+
+## Development
+
+### Adding New Dependencies
+
+**Frontend:**
 ```bash
-npm run dev
+cd apps/web
+pnpm add <package>
 ```
-The app runs at **http://localhost:9002**. It will automatically connect to the local emulators.
 
-### Environment Configuration
-
-The app uses **[Zod](https://zod.dev)** for runtime environment variable validation (see `src/lib/env.ts`). This ensures fail-fast behavior with descriptive error messages if configuration is missing or invalid.
-
-- **Development with emulators**: Set `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`. Firebase credentials can use placeholder values.
-- **Production**: All `NEXT_PUBLIC_FIREBASE_*` variables are strictly required. The app will fail fast with descriptive errors if any are missing.
-
-### Testing
-
-#### Prerequisites
-
-Before running tests, ensure the following:
-
-1. **Firebase Emulators running** (in a separate terminal):
-   ```bash
-   firebase emulators:start
-   ```
-
-2. **Development server running** (in a separate terminal):
-   ```bash
-   npm run dev
-   ```
-
-3. **Environment variables** set in `.env.local`:
-   ```env
-   # Enable test authentication API
-   ENABLE_TEST_AUTH=true
-   
-   # Use Firebase emulators instead of production
-   NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
-   
-   # Path to Firebase service account JSON (for Admin SDK)
-   FIREBASE_SERVICE_ACCOUNT_PATH=./secrets/your-service-account.json
-   ```
-
-   > **Note:** The service account JSON file can be downloaded from the [Firebase Console](https://console.firebase.google.com/):
-   > 1. Go to your project → **Project Settings** (gear icon)
-   > 2. Navigate to **Service accounts** tab
-   > 3. Click **"Generate new private key"**
-   > 4. Save the downloaded file to the `secrets/` folder in your project root
-
-#### Run Tests
-
-**Run All E2E Tests**
+**Backend:**
 ```bash
-npm run test:e2e
+cd services/api
+pip install <package>
+echo "<package>" >> requirements.txt
 ```
 
-**Run Emulator Configuration Tests**
+### Running Tests
+
 ```bash
-npm run test:emulators
+# Frontend tests
+pnpm test
+
+# Backend tests
+cd services/api
+pytest
 ```
 
-**Run Environment Validation Unit Tests**
-```bash
-npm run test:env
-```
+## API Documentation
 
-## 🧠 AI Features
+When the Python service is running, access the auto-generated API docs at:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-### Context-Aware RAG Pipeline
+## Deployment
 
-We have implemented an optimized Retrieval-Augmented Generation (RAG) pipeline designed for course materials (textbooks, lectures).
+### Frontend
+The Next.js app deploys to Firebase Hosting.
 
-**The Problem:** Standard chunking loses context. A chunk saying "It uses a boolean flag" is useless without knowing it belongs to "Chapter 2 > While Loops".
+### Backend
+The Python service deploys to Google Cloud Run.
 
-**Our Solution:**
-1.  **Hierarchical Chunking:** We parse Markdown headers to track the full path of every text chunk (e.g., `["Unit 1", "React", "Hooks"]`).
-2.  **AI Enrichment:** We use Gemini to generate metadata for each chunk:
-    *   **Summary:** One-sentence overview.
-    *   **Keywords:** For tag-based filtering.
-    *   **Hypothetical Questions:** Enables "Question-to-Question" semantic search.
-3.  **Smart Embedding:** We embed a rich context string (Title + Path + Summary + Content) rather than just raw text.
-
-### 🧪 Testing the Pipeline
-
-**1. Configure Environment Variables**
-Create a `.env.local` file in the root directory (`CourseLLM-Firebase`) and add your Google Gemini API key. This is required for the AI enrichment features.
-
-```env
-GOOGLE_API_KEY=YOUR_API_KEY_HERE
-```
-
-**2. Run the Chunking Logic Tests**
-Verify that the deterministic chunker correctly handles headers, nesting, and code blocks.
-```bash
-npx tsx scripts/test-chunking.ts
-```
-
-**3. Test the Full AI Pipeline (Genkit UI)**
-1.  Start the Genkit server:
-    ```bash
-    npm run genkit:dev
-    ```
-2.  Open `http://localhost:4000`.
-3.  Click on the **Flows** menu item.
-4.  Select `optimizedIndexingFlow`.
-5.  Input sample Markdown to see the generated chunks, metadata, and vector embeddings.
-
-    **Example Input JSON:**
-    ```json
-    {
-      "courseId": "cs-101",
-      "documentTitle": "Introduction to AI",
-      "markdownContent": "# What is AI?\n\nArtificial Intelligence (AI) is the simulation of human intelligence processes by machines.\n\n## Key Concepts\n\n### Machine Learning\nMachine Learning (ML) is a subset of AI that provides systems the ability to automatically learn and improve from experience."
-    }
-    ```
+See individual service READMEs for deployment instructions.

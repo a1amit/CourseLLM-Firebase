@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source code for hot reload
+      - ./app:/app/app
+    environment:
+      # Firebase Emulator settings
+      - FIRESTORE_EMULATOR_HOST=host.docker.internal:8080
+      - FIREBASE_STORAGE_EMULATOR_HOST=host.docker.internal:9199
+      # Vertex AI settings (optional)
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-global}
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-False}
+    networks:
+      - coursellm-network
+    restart: unless-stopped
+
+networks:
+  coursellm-network:
+    driver: bridge

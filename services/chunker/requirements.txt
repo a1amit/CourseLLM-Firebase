@@ -1,8 +1,0 @@
-fastapi>=0.100.0
-uvicorn[standard]>=0.22.0
-pyjwt>=2.8.0
-pydantic>=2.5.0
-firebase-admin>=6.0.0
-pydantic-settings>=1.0.0
-pytest>=7.0.0
-requests>=2.28.0
