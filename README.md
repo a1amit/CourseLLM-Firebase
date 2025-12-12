@@ -4,6 +4,33 @@ CourseLLM is a Firebase + Next.js application with a Python FastAPI ingestion se
 
 New here? Start with [GETTING_STARTED.md](GETTING_STARTED.md).
 
+## Architecture
+
+CourseLLM uses a **monorepo**: the Next.js frontend and Python micro-services live side-by-side in the same Git repository. This fits our Firebase-centric workflow where infrastructure, frontend, and backend need to evolve together.
+
+### Monorepo vs multi-repo (why we chose monorepo)
+
+In a multi-repo setup, the web app and each micro-service live in separate repositories. That can work, but it tends to introduce friction for our stack:
+
+- **Atomic changes**: a single PR can update a Python endpoint and the React code that calls it.
+- **Less version drift**: frontend and backend changes land together instead of “web expects v1.2, service runs v1.3”.
+- **Unified local environment**: one repo + one Firebase config to run emulators and connect both the web app and services consistently.
+- **Simpler integration contracts**: shared definitions (Firebase Data Connect schema, OpenAPI docs) can live in-repo and be reviewed alongside code.
+
+Trade-off: monorepos require discipline around ownership and build performance. As the project grows, we can introduce a task-graph tool (e.g., Nx/Turborepo) to avoid rebuilding/retesting unrelated parts of the repo.
+
+### How the pieces fit
+
+- **Frontend**: Next.js (React) app in `apps/web/`.
+- **Backend services**: containerized Python services in `services/*/` (today: `services/ingestion/`).
+- **Firebase context**: root-level `firebase.json`, rules, and Data Connect config provide a single source of truth for emulators and deployment.
+
+### Workflow & synchronization
+
+- Run Firebase emulators from the repo root so the web app and services share the same local Firebase context.
+- Use **Data Connect** for rich, schema-driven data services, and **OpenAPI** for other HTTP services (like ingestion).
+- Treat schema/API changes as “contracts”: update the backend and the frontend usage in the same PR whenever possible.
+
 ## Repo layout
 
 ```
