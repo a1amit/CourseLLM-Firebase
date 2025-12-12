@@ -10,33 +10,33 @@ The ingestion service turns markdown into RAG-friendly chunks and can optionally
 
 ```mermaid
 flowchart TB
-  A[Markdown input] --> B[Markdown-aware section splitter (ignores fenced code blocks)]
-  B --> C[Recursive chunking + overlap (Chonkie-based)]
-  C --> D[Chunks: index, text, token_count, section_path optional]
+  A["Markdown input"] --> B["Markdown-aware section splitter<br/>ignores fenced code blocks"]
+  B --> C["Recursive chunking + overlap<br/>Chonkie based"]
+  C --> D["Chunks: index, text, token_count, section_path optional"]
 
-  D --> E{include_topics?}
-  E -- Yes --> F[Topic extraction]
-  F --> G{Gemini available (GOOGLE_API_KEY + dependency)?}
-  G -- Yes --> H[Gemini model (topic_model / TOPIC_MODEL)]
-  G -- No --> I[Heuristic fallback (deterministic)]
-  H --> J[Chunks + topics (topic_source=gemini)]
-  I --> K[Chunks + topics (topic_source=heuristic:*)]
-  J --> L
+  D --> E{"include_topics"}
+  E -- Yes --> F["Topic extraction"]
+  F --> G{"Gemini available"}
+  G -- Yes --> H["Gemini model: topic_model or TOPIC_MODEL"]
+  G -- No --> I["Heuristic fallback: deterministic"]
+  H --> J["Chunks + topics: topic_source gemini"]
+  I --> K["Chunks + topics: topic_source heuristic"]
+  J --> L["Continue"]
   K --> L
-  E -- No --> L[Skip topics]
+  E -- No --> L
 
-  L --> M{include_embeddings?}
-  M -- Yes --> N[Embedding generation (sentence-transformers / OpenAI / OpenRouter)]
-  M -- No --> O[Skip embeddings]
-  N --> P[Chunks + embedding vectors]
+  L --> M{"include_embeddings"}
+  M -- Yes --> N["Embedding generation: sentence-transformers, OpenAI, OpenRouter"]
+  M -- No --> O["Skip embeddings"]
+  N --> P["Chunks + embedding vectors"]
   O --> P
 
-  P --> Q[Store last chunks in memory (dev-only backing for /search/topics)]
-  Q --> R[Return response from POST /chunk (+ optional warnings)]
+  P --> Q["Store last chunks in memory<br/>dev only backing for /search/topics"]
+  Q --> R["Return POST /chunk response<br/>plus optional warnings"]
 
-  S[POST /search/topics (query topics)] --> T[Filter: matches_query]
-  T --> U[Rank: score_topic_match (0..100)]
-  U --> V[Return ranked chunks (with rank field)]
+  S["POST /search/topics"] --> T["Filter: matches_query"]
+  T --> U["Rank: score_topic_match 0 to 100"]
+  U --> V["Return ranked chunks with rank"]
   Q -.-> T
 ```
 
