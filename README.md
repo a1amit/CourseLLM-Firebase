@@ -10,7 +10,8 @@ This project uses a monorepo structure with a Next.js frontend and Python backen
 /
 ├── apps/
 │   └── web/              # Next.js Application
-│       ├── .env.local    # Next.js environment variables
+│       ├── .env.example  # Environment template
+│       ├── .env.local    # Your local config (create from .env.example)
 │       └── src/...
 ├── services/
 │   └── ingestion/        # Python Ingestion Service (FastAPI)
@@ -23,7 +24,6 @@ This project uses a monorepo structure with a Next.js frontend and Python backen
 │       │   └── schemas.py
 │       └── requirements.txt
 ├── packages/             # Shared libraries (future use)
-├── .env.local            # Root-level environment (Firebase emulators)
 ├── pnpm-workspace.yaml   # Workspace configuration
 └── firebase.json         # Firebase configuration
 ```
@@ -58,45 +58,35 @@ pip install -r requirements.txt
 
 ### 3. Environment Configuration
 
-#### Understanding `.env.local` Files in Monorepo
+#### Next.js Environment (API Keys & Config)
 
-This monorepo has **two separate** `.env.local` files:
-
-1. **Root `.env.local`** - For Firebase emulators and global config
-2. **`apps/web/.env.local`** - For Next.js app (API keys, etc.)
-
-Each app reads its own `.env.local` file, not the root one!
-
-#### Setup Steps
-
-**1. Root Environment (Firebase Emulators)**
-```bash
-cp .env.local.example .env.local
-# Configure Firebase settings
-```
-
-**2. Next.js Environment (API Keys & Config)**
 ```bash
 cd apps/web
-cp ../../.env.local.example .env.local
+cp .env.example .env.local
 ```
 
-Edit `apps/web/.env.local` and add:
+Edit `apps/web/.env.local` and configure:
 ```bash
+# Firebase (required - get from Firebase Console > Project Settings > Web App)
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+
+# Enable emulators for local development
+NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
+
 # Required for chat and assessment features
 GOOGLE_API_KEY=your_gemini_api_key_here
-
-# Optional: For Vertex AI embeddings
-GOOGLE_CLOUD_PROJECT=your-project-id
-GOOGLE_CLOUD_LOCATION=global
-GOOGLE_GENAI_USE_VERTEXAI=True
 ```
 
 **Get a Gemini API key**: https://aistudio.google.com/app/apikey
 
 #### Python Service (Ingestion)
-Requires `GOOGLE_API_KEY` (or `GOOGLE_GENAI_API_KEY`) for topic extraction.
-Create `services/ingestion/.env` or ensure your deployment environment has this variable set.
+
+The ingestion service uses the same `apps/web/.env.local` file via docker-compose.
 For Vertex AI embeddings, see **[VERTEX_AI_SETUP.md](services/ingestion/VERTEX_AI_SETUP.md)**.
 
 ## Running the Application
