@@ -90,18 +90,18 @@ function parseEnv<T extends z.ZodTypeAny>(
   context: string
 ): z.infer<T> {
   const result = schema.safeParse(env);
-  
+
   if (!result.success) {
     const errors = result.error.errors
       .map((e) => `  - ${e.path.join(".")}: ${e.message}`)
       .join("\n");
-    
+
     throw new Error(
       `❌ Invalid ${context} environment variables:\n${errors}\n\n` +
       `Please check your .env.local file. See .env.local.example for reference.`
     );
   }
-  
+
   return result.data;
 }
 
@@ -124,7 +124,7 @@ function getClientEnv() {
     });
     return parseEnv(permissiveSchema, clientEnvRaw, "client");
   }
-  
+
   return parseEnv(clientEnvSchema, clientEnvRaw, "client");
 }
 
@@ -135,7 +135,7 @@ function getServerEnv() {
   if (!isServer) {
     throw new Error("Server environment variables cannot be accessed on the client");
   }
-  
+
   return parseEnv(serverEnvSchema, {
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     FIREBASE_SERVICE_ACCOUNT_JSON: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
