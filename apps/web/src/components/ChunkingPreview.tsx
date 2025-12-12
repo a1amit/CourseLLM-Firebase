@@ -46,6 +46,8 @@ type Preset = "ml" | "architecture" | "prd" | "custom";
 
 type EmbeddingProvider = "sentence-transformers" | "openai" | "openrouter" | "mock";
 
+type TopicModel = "gemini-2.5-flash-lite" | "heuristic";
+
 const ST_MODELS: Array<{ label: string; value: string }> = [
   {
     label: "sentence-transformers/all-MiniLM-L6-v2 (384d)",
@@ -104,6 +106,22 @@ function formatEmbeddingAll(values: number[], perLine = 8): string {
   return lines.join("\n");
 }
 
+function normalizeTopic(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function topicMatchesQuery(topic: string, queryTopics: string[]): boolean {
+  const t = normalizeTopic(topic);
+  if (!t) return false;
+  for (const qRaw of queryTopics) {
+    const q = normalizeTopic(qRaw);
+    if (!q) continue;
+    if (t === q) return true;
+    if (t.includes(q) || q.includes(t)) return true;
+  }
+  return false;
+}
+
 export default function ChunkingPreview() {
   const { toast } = useToast();
 
@@ -112,8 +130,8 @@ export default function ChunkingPreview() {
   const [chunkSize, setChunkSize] = useState<number>(450);
   const [overlapSize, setOverlapSize] = useState<number>(80);
 
-  const [includeTopics, setIncludeTopics] = useState<boolean>(false);
-  const [topicModel, setTopicModel] = useState<string>("gemini-2.5-flash-lite");
+  const [includeTopics, setIncludeTopics] = useState<boolean>(true);
+  const [topicModel, setTopicModel] = useState<TopicModel>("gemini-2.5-flash-lite");
   const [maxTopics, setMaxTopics] = useState<number>(8);
 
   const [includeEmbeddings, setIncludeEmbeddings] = useState<boolean>(true);
@@ -131,6 +149,15 @@ export default function ChunkingPreview() {
   const [topicLimit, setTopicLimit] = useState<number>(25);
   const [isSearchingTopics, setIsSearchingTopics] = useState<boolean>(false);
   const [topicSearchResult, setTopicSearchResult] = useState<TopicSearchResponse | null>(null);
+
+  const topicQueryTerms = useMemo(
+    () =>
+      topicQuery
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0),
+    [topicQuery]
+  );
 
   const onPresetChange = useCallback((value: string) => {
     const next = value as Preset;
@@ -162,7 +189,7 @@ export default function ChunkingPreview() {
       };
 
       if (includeTopics) {
-        if (topicModel.trim().length > 0) payload.topic_model = topicModel.trim();
+        payload.topic_model = topicModel;
         payload.max_topics = maxTopics;
       }
 
@@ -346,16 +373,22 @@ export default function ChunkingPreview() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="topicModel">Topic model</Label>
-                    <Input
-                      id="topicModel"
+                    <Select
                       value={topicModel}
-                      onChange={(e) => {
-                        setTopicModel(e.target.value);
+                      onValueChange={(v) => {
+                        setTopicModel(v as TopicModel);
                         setResult(null);
                         setTopicSearchResult(null);
                       }}
-                      placeholder="gemini-2.5-flash-lite"
-                    />
+                    >
+                      <SelectTrigger id="topicModel">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gemini-2.5-flash-lite">Gemini (gemini-2.5-flash-lite)</SelectItem>
+                        <SelectItem value="heuristic">Heuristic (deterministic)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="maxTopics">Max topics per chunk</Label>
@@ -374,7 +407,13 @@ export default function ChunkingPreview() {
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  To use Gemini extraction, configure the ingestion service with <span className="font-mono">GOOGLE_API_KEY</span>.
+                  {topicModel === "heuristic" ? (
+                    <>Heuristic mode runs locally and does not require an API key.</>
+                  ) : (
+                    <>
+                      To use Gemini extraction, configure the ingestion service with <span className="font-mono">GOOGLE_API_KEY</span>.
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -642,9 +681,15 @@ export default function ChunkingPreview() {
                       {typeof c.rank === "number" && (
                         <Badge variant="outline">rank {c.rank.toFixed(1)}</Badge>
                       )}
-                      {Array.isArray(c.topics) && c.topics.length > 0 && (
-                        <Badge variant="outline">{c.topics.join(", ")}</Badge>
-                      )}
+                      {Array.isArray(c.topics) && c.topics.length > 0 &&
+                        c.topics.map((t) => {
+                          const matched = topicMatchesQuery(t, topicQueryTerms);
+                          return (
+                            <Badge key={`${c.index}-${t}`} variant={matched ? "destructive" : "outline"}>
+                              {t}
+                            </Badge>
+                          );
+                        })}
                     </div>
                     <pre className="whitespace-pre-wrap text-sm leading-relaxed">
                       {c.text.length > 500 ? `${c.text.slice(0, 500)}…` : c.text}

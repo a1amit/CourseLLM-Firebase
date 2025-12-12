@@ -74,7 +74,9 @@ def chunk(req: ChunkRequest):
 
         # Provide a user-visible indication when we fall back.
         sources = {str(c.get("topic_source") or "") for c in chunks_raw}
-        if any(s.startswith("heuristic:no_key") for s in sources):
+        if any(s.startswith("heuristic:forced") for s in sources):
+            warnings.append("Topic extraction used the deterministic heuristic extractor (forced by request).")
+        elif any(s.startswith("heuristic:no_key") for s in sources):
             warnings.append("Topic extraction fell back to a heuristic extractor because GOOGLE_API_KEY is not set.")
         elif any(s.startswith("heuristic:no_dependency") for s in sources):
             warnings.append("Topic extraction fell back to a heuristic extractor because the Gemini client dependency is not installed.")

@@ -150,6 +150,13 @@ def extract_topics(text: str, *, model: str | None = None, max_topics: int = 10)
     - If Gemini call fails -> heuristic with source "heuristic:error".
     """
 
+    requested = (model or "").strip().lower()
+    if requested in {"heuristic", "heuristic-only", "deterministic"}:
+        return TopicExtractionResult(
+            topics=heuristic_extract_topics(text, max_topics=max_topics),
+            source="heuristic:forced",
+        )
+
     api_key = (os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GENAI_API_KEY") or "").strip()
     if not api_key:
         return TopicExtractionResult(
