@@ -10,34 +10,34 @@ The ingestion service turns markdown into RAG-friendly chunks and can optionally
 
 ```mermaid
 flowchart TB
-  A[Markdown input] --> B[Markdown-aware section splitter\n(ignores fenced code blocks)]
-  B --> C[Recursive chunking + overlap\n(Chonkie-based)]
-  C --> D[Chunks: {index, text, token_count, section_path?}]
+  A[Markdown input] --> B[Markdown-aware section splitter (ignores fenced code blocks)]
+  B --> C[Recursive chunking + overlap (Chonkie-based)]
+  C --> D[Chunks: index, text, token_count, section_path optional]
 
   D --> E{include_topics?}
   E -- Yes --> F[Topic extraction]
-  F --> G{Gemini available\n(GOOGLE_API_KEY + dependency)?}
-  G -- Yes --> H[Gemini model\n(topic_model / TOPIC_MODEL)]
-  G -- No --> I[Heuristic fallback\n(deterministic)]
-  H --> J[Chunks + topics\n(topic_source=gemini)]
-  I --> K[Chunks + topics\n(topic_source=heuristic:*)]
+  F --> G{Gemini available (GOOGLE_API_KEY + dependency)?}
+  G -- Yes --> H[Gemini model (topic_model / TOPIC_MODEL)]
+  G -- No --> I[Heuristic fallback (deterministic)]
+  H --> J[Chunks + topics (topic_source=gemini)]
+  I --> K[Chunks + topics (topic_source=heuristic:*)]
   J --> L
   K --> L
   E -- No --> L[Skip topics]
 
   L --> M{include_embeddings?}
-  M -- Yes --> N[Embedding generation\n(sentence-transformers / OpenAI / OpenRouter)]
+  M -- Yes --> N[Embedding generation (sentence-transformers / OpenAI / OpenRouter)]
   M -- No --> O[Skip embeddings]
   N --> P[Chunks + embedding vectors]
   O --> P
 
-  P --> Q[Store last chunks in memory\n(dev-only backing for /search/topics)]
-  Q --> R[Return response from POST /chunk\n(+ optional warnings)]
+  P --> Q[Store last chunks in memory (dev-only backing for /search/topics)]
+  Q --> R[Return response from POST /chunk (+ optional warnings)]
 
-  S[POST /search/topics\n(query topics)] --> T[Filter: matches_query]
-  T --> U[Rank: score_topic_match\n(0..100)]
-  U --> V[Return ranked chunks\n(with rank field)]
-  Q -. provides dataset .-> T
+  S[POST /search/topics (query topics)] --> T[Filter: matches_query]
+  T --> U[Rank: score_topic_match (0..100)]
+  U --> V[Return ranked chunks (with rank field)]
+  Q -.-> T
 ```
 
 ## Run locally
