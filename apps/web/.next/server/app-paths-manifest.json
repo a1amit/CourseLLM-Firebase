@@ -1,7 +1,0 @@
-{
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/onboarding/page": "app/onboarding/page.js",
-  "/debug/chunking/page": "app/debug/chunking/page.js",
-  "/login/page": "app/login/page.js",
-  "/student/page": "app/student/page.js"
-}
