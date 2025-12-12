@@ -1,627 +1,745 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
+import { useCallback, useMemo, useState } from "react";
+import { SAMPLE_ARCHITECTURE, SAMPLE_ML, SAMPLE_PRD } from "@/components/samples";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { SAMPLE_ML, SAMPLE_ARCHITECTURE } from "./samples";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useToast } from "@/hooks/use-toast";
 
-interface Chunk {
-    index: number;
-    content: string;
-    token_count: number;
-    start_index?: number;
-    end_index?: number;
-    embedding?: number[];
-    embedding_dim?: number;
-    topics?: string[];
-    rank?: number;
-    metadata?: {
-        topic_source?: string;
-        [key: string]: any;
-    };
+type ChunkOut = {
+  index: number;
+  text: string;
+  token_count?: number | null;
+  section_index?: number | null;
+  section_path?: string | null;
+  embedding?: number[] | null;
+  topics?: string[] | null;
+  topic_source?: string | null;
+  rank?: number | null;
+};
+
+type ChunkResponse = {
+  chunk_count: number;
+  chunks: ChunkOut[];
+  warnings?: string[] | null;
+};
+
+type TopicSearchResponse = {
+  total_results: number;
+  chunks: ChunkOut[];
+};
+
+const DEFAULT_URL =
+  process.env.NEXT_PUBLIC_INGESTION_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8000";
+
+type Preset = "ml" | "architecture" | "prd" | "custom";
+
+type EmbeddingProvider = "sentence-transformers" | "openai" | "openrouter" | "mock";
+
+const ST_MODELS: Array<{ label: string; value: string }> = [
+  {
+    label: "sentence-transformers/all-MiniLM-L6-v2 (384d)",
+    value: "sentence-transformers/all-MiniLM-L6-v2",
+  },
+  {
+    label: "sentence-transformers/all-mpnet-base-v2 (768d)",
+    value: "sentence-transformers/all-mpnet-base-v2",
+  },
+];
+
+const OPENAI_MODELS: Array<{ label: string; value: string }> = [
+  { label: "text-embedding-3-small", value: "text-embedding-3-small" },
+  { label: "text-embedding-3-large", value: "text-embedding-3-large" },
+];
+
+const OPENROUTER_MODELS: Array<{ label: string; value: string }> = [
+  { label: "openai/text-embedding-3-small", value: "openai/text-embedding-3-small" },
+  { label: "openai/text-embedding-3-large", value: "openai/text-embedding-3-large" },
+];
+
+function defaultModelFor(provider: EmbeddingProvider): string {
+  switch (provider) {
+    case "sentence-transformers":
+      return "sentence-transformers/all-MiniLM-L6-v2";
+    case "openai":
+      return "text-embedding-3-small";
+    case "openrouter":
+      return "openai/text-embedding-3-small";
+    case "mock":
+    default:
+      return "__none__";
+  }
 }
 
-interface ChunkResponse {
-    chunks: Chunk[];
-    total_results?: number;
+function formatEmbeddingPreview(values: number[], count = 6): string {
+  const shown = values
+    .slice(0, Math.max(0, count))
+    .map((v) => (Number.isFinite(v) ? v.toFixed(4) : String(v)));
+  const hasMore = values.length > count;
+  return `[${shown.join(", ")}${hasMore ? ", …" : ""}]`;
+}
+
+function formatEmbeddingAll(values: number[], perLine = 8): string {
+  const safePerLine = Math.max(1, perLine);
+  const lines: string[] = ["["];
+  for (let i = 0; i < values.length; i += safePerLine) {
+    const slice = values
+      .slice(i, i + safePerLine)
+      .map((v) => (Number.isFinite(v) ? v.toFixed(6) : String(v)))
+      .join(", ");
+    const trailing = i + safePerLine < values.length ? "," : "";
+    lines.push(`  ${slice}${trailing}`);
+  }
+  lines.push("]");
+  return lines.join("\n");
 }
 
 export default function ChunkingPreview() {
-    const [markdown, setMarkdown] = useState<string>("");
-    const [chunks, setChunks] = useState<Chunk[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
-    // Chunking parameters
-    const [strategy, setStrategy] = useState<string>("recursive");
-    const [chunkSize, setChunkSize] = useState<number>(1024);
-    const [overlap, setOverlap] = useState<number>(0);
-    const [similarityThreshold, setSimilarityThreshold] = useState<number>(0.5);
-    const [minSentencesPerChunk, setMinSentencesPerChunk] = useState<number>(2);
-    const [tokenizer, setTokenizer] = useState<string>("gpt2");
-    const [generateEmbeddings, setGenerateEmbeddings] = useState<boolean>(false);
-    const [embeddingProvider, setEmbeddingProvider] = useState<string>("sentence-transformers");
-    const [embeddingModel, setEmbeddingModel] = useState<string>("all-MiniLM-L6-v2");
+  const [preset, setPreset] = useState<Preset>("architecture");
+  const [text, setText] = useState<string>(SAMPLE_ARCHITECTURE);
+  const [chunkSize, setChunkSize] = useState<number>(450);
+  const [overlapSize, setOverlapSize] = useState<number>(80);
 
-    // Enhanced features
-    const [extractTopics, setExtractTopics] = useState<boolean>(true);
-    const [rankContent, setRankContent] = useState<boolean>(true);
-    const [documentTitle, setDocumentTitle] = useState<string>("");
+  const [includeTopics, setIncludeTopics] = useState<boolean>(false);
+  const [topicModel, setTopicModel] = useState<string>("gemini-2.5-flash-lite");
+  const [maxTopics, setMaxTopics] = useState<number>(8);
 
-    // Search state
-    const [searchQuery, setSearchQuery] = useState<string>("");
-    const [minRank, setMinRank] = useState<number>(50);
-    const [searchResults, setSearchResults] = useState<ChunkResponse & { total_results: number } | null>(null);
-    const [searchLoading, setSearchLoading] = useState<boolean>(false);
+  const [includeEmbeddings, setIncludeEmbeddings] = useState<boolean>(true);
+  const [embeddingProvider, setEmbeddingProvider] = useState<EmbeddingProvider>("sentence-transformers");
+  const [embeddingModel, setEmbeddingModel] = useState<string>(defaultModelFor("sentence-transformers"));
+  const [embeddingModelIsCustom, setEmbeddingModelIsCustom] = useState<boolean>(false);
 
-    const handleSearch = async () => {
-        if (!searchQuery.trim()) return;
+  const [isRunning, setIsRunning] = useState(false);
+  const [result, setResult] = useState<ChunkResponse | null>(null);
+  const [openEmbeddings, setOpenEmbeddings] = useState<Record<number, boolean>>({});
 
-        setSearchLoading(true);
-        setError(null);
+  const [topicQuery, setTopicQuery] = useState<string>("");
+  const [topicMatch, setTopicMatch] = useState<"any" | "all">("any");
+  const [topicMinRank, setTopicMinRank] = useState<string>("");
+  const [topicLimit, setTopicLimit] = useState<number>(25);
+  const [isSearchingTopics, setIsSearchingTopics] = useState<boolean>(false);
+  const [topicSearchResult, setTopicSearchResult] = useState<TopicSearchResponse | null>(null);
 
-        try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-            const topics = searchQuery.split(',').map(t => t.trim()).filter(Boolean);
+  const onPresetChange = useCallback((value: string) => {
+    const next = value as Preset;
+    setPreset(next);
+    if (next === "ml") setText(SAMPLE_ML);
+    if (next === "architecture") setText(SAMPLE_ARCHITECTURE);
+    if (next === "prd") setText(SAMPLE_PRD);
+    if (next === "custom") setText("");
+    setResult(null);
+    setTopicSearchResult(null);
+  }, []);
 
-            const response = await fetch(`${apiUrl}/v1/search/topics`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    topics,
-                    min_rank: minRank,
-                    limit: 10
-                }),
-            });
+  const runChunking = useCallback(async () => {
+    setIsRunning(true);
+    setResult(null);
+    setOpenEmbeddings({});
+    setTopicSearchResult(null);
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `Search failed: ${response.statusText}`);
-            }
+    try {
+      const url = `${DEFAULT_URL.replace(/\/$/, "")}/chunk`;
 
-            const data = await response.json();
-            setSearchResults(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Search failed");
-        } finally {
-            setSearchLoading(false);
+      const payload: Record<string, unknown> = {
+        text,
+        chunk_size: chunkSize,
+        overlap_size: overlapSize,
+        include_section_path: true,
+        include_embeddings: includeEmbeddings,
+        include_topics: includeTopics,
+      };
+
+      if (includeTopics) {
+        if (topicModel.trim().length > 0) payload.topic_model = topicModel.trim();
+        payload.max_topics = maxTopics;
+      }
+
+      if (includeEmbeddings) {
+        payload.embedding_provider = embeddingProvider;
+        if (embeddingModel && embeddingModel !== "__none__" && embeddingModel.trim().length > 0) {
+          payload.embedding_model = embeddingModel.trim();
         }
-    };
+      }
 
-    const handleChunk = async () => {
-        if (!markdown.trim()) {
-            setError("Please enter some markdown text");
-            return;
-        }
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-        setLoading(true);
-        setError(null);
-        setChunks([]);
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`${res.status} ${res.statusText}: ${body}`);
+      }
 
-        try {
-            // Get API URL from environment or default to localhost
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const data = (await res.json()) as ChunkResponse;
+      setResult(data);
 
-            const response = await fetch(`${apiUrl}/v1/chunk`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    // TODO: Add authentication when ready
-                },
-                body: JSON.stringify({
-                    markdown,
-                    strategy,
-                    max_chunk_size: chunkSize,
-                    tokenizer,
-                    overlap,
-                    similarity_threshold: strategy === "semantic" ? similarityThreshold : undefined,
-                    min_sentences_per_chunk: strategy === "semantic" ? minSentencesPerChunk : undefined,
-                    generate_embeddings: generateEmbeddings,
-                    embedding_provider: embeddingProvider,
-                    embedding_model: embeddingModel,
-                    extract_topics: extractTopics,
-                    rank_content: rankContent,
-                    document_title: documentTitle || undefined,
-                }),
-            });
+      toast({
+        title: "Chunking complete",
+        description: `Created ${data.chunk_count} chunks`,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      toast({
+        title: "Chunking failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  }, [chunkSize, overlapSize, includeEmbeddings, includeTopics, embeddingProvider, embeddingModel, text, toast, topicModel, maxTopics]);
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                const errorMessage = errorData.detail || `API Error: ${response.statusText}`;
-                throw new Error(errorMessage);
-            }
+  const runTopicSearch = useCallback(async () => {
+    if (!result) {
+      toast({
+        title: "No chunks yet",
+        description: "Run chunking first so the ingestion service has chunks to search.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-            const data: ChunkResponse = await response.json();
-            setChunks(data.chunks);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Unknown error occurred");
-        } finally {
-            setLoading(false);
-        }
-    };
+    const topics = topicQuery
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
 
-    const loadSample = (sampleNum: number) => {
-        if (sampleNum === 1) {
-            setMarkdown(SAMPLE_ML);
-            setDocumentTitle("Introduction to Machine Learning");
-        } else if (sampleNum === 2) {
-            setMarkdown(SAMPLE_ARCHITECTURE);
-            setDocumentTitle("System Architecture Overview");
-        }
-    };
+    if (topics.length === 0) {
+      toast({
+        title: "Enter at least one topic",
+        description: "Use a comma-separated list, e.g. 'prd, metrics'.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    return (
-        <div className="container mx-auto py-8 space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Chunking Preview Tool</CardTitle>
-                    <CardDescription>
-                        Test the Chonkie-based chunking implementation. Paste markdown text and see how it gets chunked.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {/* Configuration */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="strategy">Strategy</Label>
-                            <Select value={strategy} onValueChange={setStrategy}>
-                                <SelectTrigger id="strategy">
-                                    <SelectValue placeholder="Select strategy" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="recursive">Recursive</SelectItem>
-                                    <SelectItem value="semantic">Semantic</SelectItem>
-                                    <SelectItem value="token">Token</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+    setIsSearchingTopics(true);
+    setTopicSearchResult(null);
 
-                        <div className="space-y-2">
-                            <Label htmlFor="chunkSize">Chunk Size (tokens)</Label>
-                            <input
-                                id="chunkSize"
-                                type="number"
-                                value={chunkSize}
-                                onChange={(e) => setChunkSize(Number(e.target.value))}
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                min={128}
-                                max={2048}
-                            />
-                        </div>
+    try {
+      const url = `${DEFAULT_URL.replace(/\/$/, "")}/search/topics`;
 
-                        <div className="space-y-2">
-                            <Label htmlFor="tokenizer">Tokenizer</Label>
-                            <Select value={tokenizer} onValueChange={setTokenizer}>
-                                <SelectTrigger id="tokenizer">
-                                    <SelectValue placeholder="Select tokenizer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="gpt2">GPT-2</SelectItem>
-                                    <SelectItem value="o200k_base">GPT-4o</SelectItem>
-                                    <SelectItem value="cl100k_base">GPT-4</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+      const payload: Record<string, unknown> = {
+        topics,
+        match: topicMatch,
+        limit: topicLimit,
+      };
 
-                        <div className="space-y-2">
-                            <Label htmlFor="overlap">Overlap (tokens)</Label>
-                            <input
-                                id="overlap"
-                                type="number"
-                                value={overlap}
-                                onChange={(e) => setOverlap(Number(e.target.value))}
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                min={0}
-                                max={chunkSize / 2}
-                            />
-                        </div>
-                    </div>
+      const parsedMinRank = topicMinRank.trim().length ? Number(topicMinRank) : null;
+      if (parsedMinRank !== null && Number.isFinite(parsedMinRank)) {
+        payload.min_rank = parsedMinRank;
+      }
 
-                    {/* Semantic Strategies Tuning */}
-                    {strategy === "semantic" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <Label htmlFor="threshold">Similarity Threshold: {similarityThreshold}</Label>
-                                    <span className="text-xs text-muted-foreground">Higher = More chunks</span>
-                                </div>
-                                <input
-                                    id="threshold"
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.05"
-                                    value={similarityThreshold}
-                                    onChange={(e) => setSimilarityThreshold(Number(e.target.value))}
-                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="minSen">Min Sentences Per Chunk</Label>
-                                <input
-                                    id="minSen"
-                                    type="number"
-                                    min="1"
-                                    max="10"
-                                    value={minSentencesPerChunk}
-                                    onChange={(e) => setMinSentencesPerChunk(Number(e.target.value))}
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                />
-                            </div>
-                        </div>
-                    )}
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-                    {/* Embedding Option */}
-                    <div className="flex items-center space-x-2 pt-2">
-                        <input
-                            type="checkbox"
-                            checked={generateEmbeddings}
-                            onChange={(e) => setGenerateEmbeddings(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300"
-                        />
-                        <Label htmlFor="embeddings" className="cursor-pointer">
-                            Generate embeddings
-                        </Label>
-                    </div>
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`${res.status} ${res.statusText}: ${body}`);
+      }
 
-                    {/* Provider Selection (shown when embeddings enabled) */}
-                    {generateEmbeddings && (
-                        <div className="space-y-2 pl-6">
-                            <Label htmlFor="provider">Embedding Provider</Label>
-                            <Select value={embeddingProvider} onValueChange={setEmbeddingProvider}>
-                                <SelectTrigger id="provider">
-                                    <SelectValue placeholder="Select provider" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="sentence-transformers">
-                                        Sentence Transformers (Local, 384-768D)
-                                    </SelectItem>
-                                    <SelectItem value="vertex-ai">
-                                        Vertex AI (Cloud, 768D)
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
+      const data = (await res.json()) as TopicSearchResponse;
+      setTopicSearchResult(data);
 
-                            {/* Model Selection for Sentence Transformers */}
-                            {embeddingProvider === "sentence-transformers" && (
-                                <div className="space-y-2 pt-2">
-                                    <Label htmlFor="embeddingModel">Model</Label>
-                                    <Select value={embeddingModel} onValueChange={setEmbeddingModel}>
-                                        <SelectTrigger id="embeddingModel">
-                                            <SelectValue placeholder="Select model" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all-MiniLM-L6-v2">
-                                                all-MiniLM-L6-v2 (384D, ⚡ Fastest)
-                                            </SelectItem>
-                                            <SelectItem value="minishlab/potion-base-8M">
-                                                potion-base-8M (256D, 🧪 Chonkie Recommended)
-                                            </SelectItem>
-                                            <SelectItem value="minishlab/potion-retrieval-32M">
-                                                potion-retrieval-32M (256D, 🧪 Chonkie Recommended)
-                                            </SelectItem>
-                                            <SelectItem value="all-mpnet-base-v2">
-                                                all-mpnet-base-v2 (768D, 🎯 Balanced)
-                                            </SelectItem>
-                                            <SelectItem value="BAAI/bge-large-en-v1.5">
-                                                bge-large-en-v1.5 (1024D, 🏆 Top Quality)
-                                            </SelectItem>
-                                            <SelectItem value="dunzhang/stella_en_1.5B_v5">
-                                                stella_en_1.5B_v5 (1024D, 🚀 Best Overall)
-                                            </SelectItem>
-                                            <SelectItem value="multi-qa-mpnet-base-dot-v1">
-                                                multi-qa-mpnet (768D, 💬 Q&A Optimized)
-                                            </SelectItem>
-                                            <SelectItem value="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2">
-                                                multilingual-MiniLM (384D, 🌍 50+ Languages)
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-muted-foreground">
-                                        {embeddingModel === "all-MiniLM-L6-v2" && "⚡ Fastest, great for development"}
-                                        {embeddingModel === "all-mpnet-base-v2" && "🎯 Best balance of speed and quality"}
-                                        {embeddingModel === "BAAI/bge-large-en-v1.5" && "🏆 Top MTEB performer, high quality"}
-                                        {embeddingModel === "dunzhang/stella_en_1.5B_v5" && "🚀 Best overall MTEB score 2024"}
-                                        {embeddingModel === "multi-qa-mpnet-base-dot-v1" && "💬 Optimized for Q&A and RAG"}
-                                        {embeddingModel === "paraphrase-multilingual-MiniLM-L12-v2" && "🌍 Supports 50+ languages"}
-                                    </p>
-                                </div>
-                            )}
+      toast({
+        title: "Topic search complete",
+        description: `Found ${data.total_results} matches`,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      toast({
+        title: "Topic search failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearchingTopics(false);
+    }
+  }, [result, toast, topicQuery, topicMatch, topicLimit, topicMinRank]);
 
-                            <p className="text-xs text-muted-foreground">
-                                {embeddingProvider === "vertex-ai"
-                                    ? "⚠️ Requires Google Cloud credentials configured"
-                                    : "✅ Runs locally, downloads model automatically (~80-1500MB)"
-                                }
-                            </p>
-                        </div>
-                    )}
+  const stats = useMemo(() => {
+    if (!result) return null;
+    const tokenCounts = result.chunks
+      .map((c) => (typeof c.token_count === "number" ? c.token_count : null))
+      .filter((v): v is number => v !== null);
 
-                    {/* Enhanced Features Options */}
-                    <div className="space-y-4 pt-2 border-t">
-                        <Label className="text-base font-semibold">Enhanced Features</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="extractTopics"
-                                    checked={extractTopics}
-                                    onCheckedChange={(checked) => setExtractTopics(checked as boolean)}
-                                />
-                                <Label htmlFor="extractTopics" className="cursor-pointer">
-                                    Extract Topics (uses Gemini)
-                                </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="rankContent"
-                                    checked={rankContent}
-                                    onCheckedChange={(checked) => setRankContent(checked as boolean)}
-                                />
-                                <Label htmlFor="rankContent" className="cursor-pointer">
-                                    Rank Content Relevance
-                                </Label>
-                            </div>
-                        </div>
+    const avgTokens = tokenCounts.length
+      ? Math.round(tokenCounts.reduce((a, b) => a + b, 0) / tokenCounts.length)
+      : null;
 
-                        {(rankContent || extractTopics) && (
-                            <div className="space-y-2">
-                                <Label htmlFor="docTitle">Document Title (Context for ranking/extraction)</Label>
-                                <Input
-                                    id="docTitle"
-                                    placeholder="e.g. Introduction to Machine Learning"
-                                    value={documentTitle}
-                                    onChange={(e) => setDocumentTitle(e.target.value)}
-                                />
-                            </div>
-                        )}
-                    </div>
+    return { avgTokens, tokenCountsKnown: tokenCounts.length };
+  }, [result]);
+  
+  const embeddingDims = useMemo(() => {
+    if (!result) return null;
+    const dims = new Set<number>();
+    for (const chunk of result.chunks) {
+      if (Array.isArray(chunk.embedding)) dims.add(chunk.embedding.length);
+    }
+    if (dims.size === 0) return null;
+    return Array.from(dims).sort((a, b) => a - b);
+  }, [result]);
 
-                    <Separator />
+  return (
+    <div className="grid gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Input</CardTitle>
+          <CardDescription>Paste markdown and preview how it is chunked for RAG.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="chunkSize">Chunk size (tokens)</Label>
+                <Input
+                  id="chunkSize"
+                  type="number"
+                  min={50}
+                  max={4000}
+                  value={chunkSize}
+                  onChange={(e) => setChunkSize(Number(e.target.value))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="overlapSize">Overlap size (tokens)</Label>
+                <Input
+                  id="overlapSize"
+                  type="number"
+                  min={0}
+                  max={1000}
+                  value={overlapSize}
+                  onChange={(e) => setOverlapSize(Number(e.target.value))}
+                />
+              </div>
+            </div>
 
-                    {/* Input */}
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <Label htmlFor="markdown">Markdown Input</Label>
-                            <div className="flex gap-2 items-center">
-                                <Label htmlFor="sampleSelect" className="text-sm text-muted-foreground">Load Sample:</Label>
-                                <Select onValueChange={(value) => loadSample(parseInt(value))}>
-                                    <SelectTrigger id="sampleSelect" className="w-[200px]">
-                                        <SelectValue placeholder="Choose sample..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1">ML Introduction</SelectItem>
-                                        <SelectItem value="2">App Architecture</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        <Textarea
-                            id="markdown"
-                            placeholder="Paste your markdown here..."
-                            value={markdown}
-                            onChange={(e) => setMarkdown(e.target.value)}
-                            rows={12}
-                            className="font-mono text-sm"
-                        />
-                    </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="grid gap-1">
+                <div className="text-sm font-medium">Include topics</div>
+                <div className="text-xs text-muted-foreground">
+                  Extract topics per chunk (LLM when configured; falls back to heuristic with a warning).
+                </div>
+              </div>
+              <Switch checked={includeTopics} onCheckedChange={setIncludeTopics} />
+            </div>
 
-                    {/* Action Button */}
-                    <Button
-                        onClick={handleChunk}
-                        disabled={loading || !markdown.trim()}
-                        className="w-full"
+            {includeTopics && (
+              <div className="grid gap-4 rounded-lg border p-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="topicModel">Topic model</Label>
+                    <Input
+                      id="topicModel"
+                      value={topicModel}
+                      onChange={(e) => {
+                        setTopicModel(e.target.value);
+                        setResult(null);
+                        setTopicSearchResult(null);
+                      }}
+                      placeholder="gemini-2.5-flash-lite"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="maxTopics">Max topics per chunk</Label>
+                    <Input
+                      id="maxTopics"
+                      type="number"
+                      min={1}
+                      max={32}
+                      value={maxTopics}
+                      onChange={(e) => {
+                        setMaxTopics(Number(e.target.value));
+                        setResult(null);
+                        setTopicSearchResult(null);
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  To use Gemini extraction, configure the ingestion service with <span className="font-mono">GOOGLE_API_KEY</span>.
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="grid gap-1">
+                <div className="text-sm font-medium">Include embeddings</div>
+                <div className="text-xs text-muted-foreground">
+                  Choose an embedding provider/model for this request.
+                </div>
+              </div>
+              <Switch checked={includeEmbeddings} onCheckedChange={setIncludeEmbeddings} />
+            </div>
+
+            {includeEmbeddings && (
+              <div className="grid gap-4 rounded-lg border p-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Embedding provider</Label>
+                    <Select
+                      value={embeddingProvider}
+                      onValueChange={(v) => {
+                        const next = v as EmbeddingProvider;
+                        setEmbeddingProvider(next);
+                        setEmbeddingModelIsCustom(false);
+                        setEmbeddingModel(defaultModelFor(next));
+                        setResult(null);
+                      }}
                     >
-                        {loading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Chunking...
-                            </>
-                        ) : (
-                            "Chunk It!"
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sentence-transformers">sentence-transformers (local)</SelectItem>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="openrouter">OpenRouter</SelectItem>
+                        <SelectItem value="mock">Mock (dev)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Embedding model</Label>
+                    <Select
+                      value={embeddingModelIsCustom ? "__custom__" : embeddingModel || "__custom__"}
+                      onValueChange={(v) => {
+                        if (v === "__custom__") {
+                          setEmbeddingModelIsCustom(true);
+                          setEmbeddingModel(embeddingModel || "");
+                        } else if (v === "__none__") {
+                          setEmbeddingModelIsCustom(false);
+                          setEmbeddingModel("__none__");
+                        } else {
+                          setEmbeddingModelIsCustom(false);
+                          setEmbeddingModel(v);
+                        }
+                        setResult(null);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {embeddingProvider === "sentence-transformers" &&
+                          ST_MODELS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>
+                              {m.label}
+                            </SelectItem>
+                          ))}
+                        {embeddingProvider === "openai" &&
+                          OPENAI_MODELS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>
+                              {m.label}
+                            </SelectItem>
+                          ))}
+                        {embeddingProvider === "openrouter" &&
+                          OPENROUTER_MODELS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>
+                              {m.label}
+                            </SelectItem>
+                          ))}
+                        {embeddingProvider === "mock" && (
+                          <SelectItem value="__none__">(no model)</SelectItem>
                         )}
-                    </Button>
+                        <SelectItem value="__custom__">Custom…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-                    {/* Error Display */}
-                    {error && (
-                        <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20">
-                            <p className="font-semibold">Error:</p>
-                            <p className="text-sm">{error}</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                {embeddingModelIsCustom && embeddingProvider !== "mock" && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="embeddingModel">Custom model name</Label>
+                    <Input
+                      id="embeddingModel"
+                      value={embeddingModel}
+                      onChange={(e) => {
+                        setEmbeddingModel(e.target.value);
+                        setResult(null);
+                      }}
+                      placeholder={defaultModelFor(embeddingProvider)}
+                    />
+                  </div>
+                )}
 
-            {/* Topic Search Section */}
-            {
-                chunks.length > 0 && (
-                    <Card className="border-blue-200 bg-blue-50/20">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                🔍 Topic Search
-                            </CardTitle>
-                            <CardDescription>
-                                Search within the generated chunks by topic. High-ranking content appears first.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex gap-4 items-end">
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="searchTopics">Topics (comma separated)</Label>
-                                    <Input
-                                        id="searchTopics"
-                                        placeholder="e.g. machine learning, neural networks"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
-                                </div>
-                                <div className="w-32 space-y-2">
-                                    <Label htmlFor="minRank">Min Rank: {minRank}</Label>
-                                    <input
-                                        id="minRank"
-                                        type="range"
-                                        min="0"
-                                        max="100"
-                                        step="5"
-                                        value={minRank}
-                                        onChange={(e) => setMinRank(Number(e.target.value))}
-                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                    />
-                                </div>
-                                <Button onClick={handleSearch} disabled={searchLoading || !searchQuery.trim()}>
-                                    {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-                                </Button>
+                {(embeddingProvider === "openai" || embeddingProvider === "openrouter") && (
+                  <div className="text-xs text-muted-foreground">
+                    Requires an API key configured in the ingestion service container ({
+                      embeddingProvider === "openai" ? "OPENAI_API_KEY" : "OPENROUTER_API_KEY"
+                    }). If missing, the API returns 401.
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid gap-2">
+              <Label>Sample</Label>
+              <Select value={preset} onValueChange={onPresetChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a sample" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ml">Sample: ML</SelectItem>
+                  <SelectItem value="architecture">Sample: Architecture</SelectItem>
+                  <SelectItem value="prd">Sample: PRD</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-muted-foreground">Using ingestion endpoint: {DEFAULT_URL}</div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="markdown">Markdown</Label>
+              <Textarea
+                id="markdown"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="min-h-[280px] font-mono text-xs"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button onClick={runChunking} disabled={isRunning || !text.trim()}>
+                {isRunning ? "Chunking…" : "Chunk"}
+              </Button>
+              {result && (
+                <div className="text-sm text-muted-foreground">
+                  {result.chunk_count} chunks
+                  {stats && stats.avgTokens !== null && (
+                    <span>
+                      {" "}· avg {stats.avgTokens} tokens ({stats.tokenCountsKnown} measured)
+                    </span>
+                  )}
+                  {includeEmbeddings && (
+                    <span>
+                      {" "}· embeddings{" "}
+                      {embeddingDims ? (
+                        embeddingDims.length === 1 ? (
+                          <>{embeddingDims[0]}d</>
+                        ) : (
+                          <>mixed</>
+                        )
+                      ) : (
+                        <>pending</>
+                      )}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {result?.warnings && result.warnings.length > 0 && (
+              <div className="rounded-lg border bg-muted p-3 text-sm">
+                <div className="font-medium mb-1">Warnings</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {result.warnings.map((w, idx) => (
+                    <li key={idx} className="text-muted-foreground">
+                      {w}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {result && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Topic Search</CardTitle>
+            <CardDescription>
+              Searches the most recent chunking run in the ingestion service (dev-only, in-memory).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="topicQuery">Topics (comma-separated)</Label>
+              <Input
+                id="topicQuery"
+                value={topicQuery}
+                onChange={(e) => setTopicQuery(e.target.value)}
+                placeholder="prd, metrics"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Match mode</Label>
+              <Select value={topicMatch} onValueChange={(v) => setTopicMatch(v as "any" | "all")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">any</SelectItem>
+                  <SelectItem value="all">all</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="topicMinRank">Min rank (0–100, optional)</Label>
+              <Input
+                id="topicMinRank"
+                type="number"
+                min={0}
+                max={100}
+                value={topicMinRank}
+                onChange={(e) => setTopicMinRank(e.target.value)}
+                placeholder=""
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="topicLimit">Limit</Label>
+              <Input
+                id="topicLimit"
+                type="number"
+                min={1}
+                max={200}
+                value={topicLimit}
+                onChange={(e) => setTopicLimit(Number(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button onClick={runTopicSearch} disabled={isSearchingTopics}>
+              {isSearchingTopics ? "Searching…" : "Search"}
+            </Button>
+            {topicSearchResult && (
+              <div className="text-sm text-muted-foreground">
+                {topicSearchResult.total_results} results
+              </div>
+            )}
+          </div>
+
+          {topicSearchResult && topicSearchResult.chunks.length > 0 && (
+            <ScrollArea className="h-[240px] pr-4">
+              <div className="grid gap-3">
+                {topicSearchResult.chunks.map((c) => (
+                  <div key={`search-${c.index}`} className="rounded-lg border bg-card p-3">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <Badge variant="secondary">#{c.index}</Badge>
+                      {typeof c.rank === "number" && (
+                        <Badge variant="outline">rank {c.rank.toFixed(1)}</Badge>
+                      )}
+                      {Array.isArray(c.topics) && c.topics.length > 0 && (
+                        <Badge variant="outline">{c.topics.join(", ")}</Badge>
+                      )}
+                    </div>
+                    <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {c.text.length > 500 ? `${c.text.slice(0, 500)}…` : c.text}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          {topicSearchResult && topicSearchResult.chunks.length === 0 && (
+            <div className="text-sm text-muted-foreground">No matches found.</div>
+          )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Chunks</CardTitle>
+          <CardDescription>Each chunk includes optional section path context.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!result ? (
+            <div className="text-sm text-muted-foreground">Run chunking to see results.</div>
+          ) : result.chunks.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No chunks returned.</div>
+          ) : (
+            <ScrollArea className="h-[520px] pr-4">
+              <div className="grid gap-3">
+                {result.chunks.map((c) => (
+                  <div key={c.index} className="rounded-lg border bg-card p-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <Badge variant="secondary">#{c.index}</Badge>
+                      {typeof c.token_count === "number" && (
+                        <Badge variant="outline">{c.token_count} tokens</Badge>
+                      )}
+                      {Array.isArray(c.embedding) && (
+                        <Badge variant="outline">emb {c.embedding.length}d</Badge>
+                      )}
+                      {Array.isArray(c.topics) && c.topics.length > 0 && (
+                        <Badge variant="outline">topics: {c.topics.join(", ")}</Badge>
+                      )}
+                      {c.topic_source && (
+                        <Badge variant="outline">{c.topic_source}</Badge>
+                      )}
+                      {c.section_path && <Badge variant="outline">{c.section_path}</Badge>}
+                    </div>
+                    <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {c.text}
+                    </pre>
+
+                    {Array.isArray(c.embedding) && c.embedding.length > 0 && (
+                      <Collapsible
+                        open={!!openEmbeddings[c.index]}
+                        onOpenChange={(open) =>
+                          setOpenEmbeddings((prev) => ({ ...prev, [c.index]: open }))
+                        }
+                      >
+                        <div className="mt-3 grid gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">Embedding (vector values):</span>{" "}
+                              <span className="font-mono break-all">{formatEmbeddingPreview(c.embedding)}</span>
                             </div>
-
-                            {/* Search Results */}
-                            {searchResults && (
-                                <div className="space-y-4 mt-4">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-sm font-semibold text-muted-foreground">
-                                            Found {searchResults.total_results} results
-                                        </h4>
-                                    </div>
-                                    <div className="space-y-4">
-                                        {searchResults.chunks.map((chunk) => (
-                                            <div
-                                                key={chunk.index}
-                                                className="p-4 border border-blue-200 rounded-lg bg-white shadow-sm space-y-2"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge className="bg-blue-600 hover:bg-blue-700">
-                                                            Rank: {chunk.rank}/100
-                                                        </Badge>
-                                                        <Badge variant="outline">Chunk #{chunk.index + 1}</Badge>
-                                                    </div>
-                                                    {/* Topic matches highlighting could go here */}
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-2 my-2">
-                                                    {chunk.topics?.map((topic, i) => {
-                                                        const isMatch = searchQuery.toLowerCase().includes(topic.toLowerCase());
-                                                        return (
-                                                            <Badge
-                                                                key={i}
-                                                                variant="secondary"
-                                                                className={isMatch ? "bg-yellow-100 text-yellow-800 border-yellow-200" : ""}
-                                                            >
-                                                                #{topic}
-                                                            </Badge>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                <pre className="whitespace-pre-wrap text-sm font-mono bg-slate-50 p-3 rounded border">
-                                                    {chunk.content}
-                                                </pre>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )
-            }
-
-            {/* Results */}
-            {
-                chunks.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Chunks ({chunks.length})</CardTitle>
-                            <CardDescription>
-                                Total of {chunks.reduce((sum, c) => sum + c.token_count, 0)} tokens across {chunks.length} chunks
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {chunks.map((chunk) => (
-                                <div
-                                    key={chunk.index}
-                                    className="p-4 border rounded-lg bg-muted/30 space-y-2"
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <Badge variant="secondary">Chunk #{chunk.index + 1}</Badge>
-                                        <div className="flex gap-2">
-                                            <Badge variant="outline">{chunk.token_count} tokens</Badge>
-                                            {chunk.embedding_dim && (
-                                                <Badge variant="default" className="bg-green-600">
-                                                    {chunk.embedding_dim}D embedding
-                                                </Badge>
-                                            )}
-                                            {chunk.start_index !== undefined && chunk.end_index !== undefined && (
-                                                <Badge variant="outline">
-                                                    chars {chunk.start_index}-{chunk.end_index}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Rank & Topics Display */}
-                                    {(chunk.rank !== undefined || (chunk.topics && chunk.topics.length > 0)) && (
-                                        <div className="flex flex-wrap gap-2 items-center text-sm">
-                                            {chunk.rank !== undefined && (
-                                                <Badge variant={chunk.rank > 70 ? "default" : "secondary"} className={chunk.rank > 70 ? "bg-blue-600 hover:bg-blue-700" : ""}>
-                                                    Rank: {chunk.rank}/100
-                                                </Badge>
-                                            )}
-
-                                            {/* Topic Source Indicator */}
-                                            {chunk.metadata?.topic_source && (
-                                                <Badge variant="outline" className={`text-xs ${chunk.metadata.topic_source === 'gemini' ? 'border-purple-500 text-purple-600 bg-purple-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
-                                                    Source: {chunk.metadata.topic_source === 'gemini' ? 'Gemini AI' : 'Fallback'}
-                                                </Badge>
-                                            )}
-
-                                            {chunk.topics && chunk.topics.map((topic, i) => (
-                                                <Badge key={i} variant="outline" className="text-xs bg-background">
-                                                    #{topic}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <pre className="whitespace-pre-wrap text-sm font-mono bg-background p-3 rounded border">
-                                        {chunk.content}
-                                    </pre>
-
-                                    {/* Embedding Vector Display */}
-                                    {chunk.embedding && chunk.embedding.length > 0 && (
-                                        <details className="mt-2">
-                                            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                                                📊 View Embedding Vector ({chunk.embedding.length} dimensions)
-                                            </summary>
-                                            <div className="mt-2 p-3 bg-muted/50 rounded border text-xs font-mono max-h-40 overflow-y-auto">
-                                                <div className="text-xs text-muted-foreground mb-1">First 10 values:</div>
-                                                <div className="grid grid-cols-5 gap-2">
-                                                    {chunk.embedding.slice(0, 10).map((val, idx) => (
-                                                        <div key={idx} className="text-right">
-                                                            {val.toFixed(4)}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                                                    ... and {chunk.embedding.length - 10} more values
-                                                </div>
-                                            </div>
-                                        </details>
-                                    )}
-                                </div>
-                            ))}
-                        </CardContent>
-                    </Card>
-                )
-            }
-
-
-        </div >
-    );
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 px-2">
+                                {openEmbeddings[c.index]
+                                  ? "Hide"
+                                  : `Show all (${c.embedding.length})`}
+                              </Button>
+                            </CollapsibleTrigger>
+                          </div>
+                          <CollapsibleContent>
+                            <div className="rounded-md border bg-muted p-2">
+                              <div className="text-xs text-muted-foreground mb-2">
+                                Full embedding vector:
+                              </div>
+                              <ScrollArea className="max-h-[220px]">
+                                <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                                  {formatEmbeddingAll(c.embedding)}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

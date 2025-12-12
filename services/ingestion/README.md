@@ -1,136 +1,23 @@
-# Ingestion Service
+# Ingestion Service (FastAPI)
 
-This microservice handles the processing, chunking, and semantic analysis of educational content.
+The ingestion service turns markdown into RAG-friendly chunks and can optionally add:
 
-## Features
+- embeddings (local sentence-transformers or OpenAI/OpenRouter)
+- per-chunk topics (Gemini when configured; heuristic fallback)
+- dev-only topic search + ranking over the most recent chunking run
 
-- **Semantic Chunking**: Intelligently groups related content using [Chonkie](https://github.com/chonkie-inc/chonkie).
-- **Topic Extraction**: Uses Google Gemini (LLM) to extract key topics from every chunk.
-- **Content Ranking**: Assigns a relevance score (0-100) based on semantic importance and structure.
-- **Topic Search**: Search across processed chunks by topic with rank-based sorting.
-- **Embeddings**: Generates vector embeddings using Sentence Transformers (local) or Vertex AI (cloud).
-- **FastAPI**: High-performance Python API.
+## Run locally
 
-## Architecture & Pipeline
-
-```mermaid
-graph TB
-    A[Markdown Input] --> B[SemanticChunker]
-    B --> C[Chunks with Content]
-    C --> D{extract_topics?}
-    D -- Yes --> E["TopicExtractor (Gemini)"]
-    D -- No --> F[Skip]
-    E --> G[Chunks with Topics]
-    F --> G
-    G --> H{rank_content?}
-    H -- Yes --> I[ContentRanker]
-    H -- No --> J[Skip]
-    I --> K[Chunks with Ranks]
-    J --> K
-    K --> L{generate_embeddings?}
-    L -- Yes --> M[EmbeddingGenerator]
-    L -- No --> N[Return Chunks]
-    M --> N
-    
-    style A fill:#e1f5ff
-    style E fill:#fff4e1,stroke:#f90
-    style I fill:#ffe1f5,stroke:#d0f
-    style M fill:#e1ffe1,stroke:#090
-    style N fill:#f0f0f0,stroke:#333
-```
-
-## API Endpoints
-
-### 1. Chunking Endpoint
-`POST /v1/chunk`
-
-Parameters:
-- `markdown` (required): The markdown text to chunk
-- `strategy`: "semantic" (default), "recursive", or "token"
-- `max_chunk_size`: Max tokens per chunk (default: 768)
-- `overlap`: Overlap tokens between chunks (default: 0)
-- `tokenizer`: Tokenizer model (default: "gpt2")
-- `generate_embeddings`: Boolean to generate vectors
-- `embedding_provider`: "sentence-transformers" or "vertex-ai"
-- `embedding_model`: Specific model name
-- `extract_topics`: Boolean to extract topics
-- `rank_content`: Boolean to rank chunk relevance
-- `document_title`: Context for ranking
-- `similarity_threshold`: Semantic sensitivity 0-1 (Semantic only)
-- `min_sentences_per_chunk`: Min sentences msg grouping (Semantic only)
-
-**Request:**
-```json
-{
-  "markdown": "# Machine Learning\n\nIntroduction...",
-  "strategy": "semantic",
-  "max_chunk_size": 768,
-  "extract_topics": true,
-  "rank_content": true,
-  "document_title": "ML Basics",
-  "generate_embeddings": true
-}
-```
-
-**Response:**
-```json
-{
-  "chunks": [
-    {
-      "index": 0,
-      "content": "...",
-      "token_count": 150,
-      "topics": ["machine learning", "artificial intelligence"],
-      "rank": 95.5,
-      "metadata": {
-        "topic_source": "gemini"
-      },
-      "embedding": [...]
-    }
-  ]
-}
-```
-
-### 2. Topic Search Endpoint
-`POST /v1/search/topics` (Development only - in-memory)
-
-**Request:**
-```json
-{
-  "topics": ["neural networks", "deep learning"],
-  "min_rank": 50,
-  "limit": 10
-}
-```
-
-## Configuration
-
-Required environment variables in `.env` (or `.env.local` in root):
-
-### Core
-- `GOOGLE_GENAI_API_KEY`: Your Gemini API Key from [Google AI Studio](https://aistudio.google.com/app/apikey). **Required for topic extraction.** (Can also be set as `GOOGLE_API_KEY`).
-
-### Firebase Emulators (Development)
-- `FIRESTORE_EMULATOR_HOST=host.docker.internal:8080`
-- `FIREBASE_STORAGE_EMULATOR_HOST=host.docker.internal:9199`
-
-### Vertex AI (Optional - for production embeddings)
-- `GOOGLE_CLOUD_PROJECT`: GCP Project ID
-- `GOOGLE_CLOUD_LOCATION`: e.g. `us-central1`
-- `GOOGLE_GENAI_USE_VERTEXAI`: `True`
-
-## Running locally
-
-### With Docker (Recommended)
-This method handles all dependencies automatically.
+Docker (recommended):
 
 ```bash
-# From project root
-pnpm docker:ingestion
+cd services/ingestion
+docker compose up --build
 ```
 
-### With Python (Direct)
-Requires Python 3.11+.
+Note: the first Docker build can take ~10 minutes because it installs the local embeddings dependencies (sentence-transformers / PyTorch stack). Subsequent builds are much faster due to Docker layer caching.
+
+Local Python (requires Python 3.11+):
 
 ```bash
 cd services/ingestion
@@ -138,11 +25,106 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Testing
+## API
 
-Run the included test suite:
+- `GET /health`
+- `POST /chunk`
+- `POST /search/topics` (development only; searches the most recent `/chunk` results stored in memory)
+
+Swagger UI: http://localhost:8000/docs
+
+### `POST /chunk`
+
+Request fields of interest:
+
+- `text` (markdown)
+- `chunk_size`, `overlap_size`
+- `include_section_path`
+- `include_embeddings` (+ `embedding_provider`, `embedding_model`)
+- `include_topics` (+ `topic_model`, `max_topics`)
+
+Example (topics + embeddings):
+
+```bash
+curl -X POST http://localhost:8000/chunk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "# PRD\n\nThis PRD covers objectives and success metrics.",
+    "include_topics": true,
+    "max_topics": 8,
+    "include_embeddings": true,
+    "embedding_provider": "sentence-transformers",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
+  }'
+```
+
+Response:
+
+- `chunks[]` with `text`, `token_count`, optional `section_path`
+- optional `topics` + `topic_source`
+- optional `embedding`
+- optional response-level `warnings` (e.g., when topic extraction falls back)
+
+### `POST /search/topics`
+
+Important: this endpoint requires that you called `POST /chunk` first (ideally with `include_topics=true`).
+
+```bash
+curl -X POST http://localhost:8000/search/topics \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topics": ["prd", "metrics"],
+    "match": "any",
+    "min_rank": 50,
+    "limit": 25
+  }'
+```
+
+## Configuration
+
+Docker Compose reads environment variables from `services/ingestion/.env` automatically.
+Create it from the template:
+
+- copy [services/ingestion/.env.example](services/ingestion/.env.example) → `services/ingestion/.env`
+
+### Core
+
+- `CORS_ALLOW_ORIGINS` (default: `http://localhost:3000,http://localhost:9002`)
+- `CHUNK_SIZE` (default: `450`)
+- `OVERLAP_SIZE` (default: `80`)
+- `TOKENIZER` (default: `word`)
+- `MAX_INPUT_CHARS` (default: `400000`)
+
+### Embeddings
+
+- `EMBEDDING_PROVIDER` = `sentence-transformers` (docker default), `mock`, `openai`, `openrouter`
+- `ST_MODEL` (default: `sentence-transformers/all-MiniLM-L6-v2`)
+- `ST_NORMALIZE` (default: `true`)
+- `MAX_EMBED_CHUNKS` (default: `256`)
+- `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`, `OPENAI_EMBED_MODEL`)
+- `OPENROUTER_API_KEY` (+ optional `OPENROUTER_EMBED_MODEL`)
+
+### Topics
+
+- `GOOGLE_API_KEY` (or `GOOGLE_GENAI_API_KEY`) enables Gemini-backed topic extraction
+- `TOPIC_MODEL` sets the default Gemini model (default: `gemini-2.5-flash-lite`)
+- `TOPIC_DEBUG=true` adds a second warning line with error details (container logs always include stack traces)
+
+## Troubleshooting
+
+### Topic extraction falls back with `heuristic:error`
+
+Check container logs:
 
 ```bash
 cd services/ingestion
-pytest
+docker compose logs -f ingestion
 ```
+
+Common causes:
+
+- Gemini API quota / rate limiting (HTTP 429 RESOURCE_EXHAUSTED)
+- temporary network errors
+- invalid model name
+
+When you hit quota, the service intentionally falls back to a deterministic heuristic extractor and returns a warning.

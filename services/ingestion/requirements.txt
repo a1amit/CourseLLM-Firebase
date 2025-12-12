@@ -1,14 +1,12 @@
-fastapi>=0.100.0
-uvicorn[standard]>=0.22.0
-pyjwt>=2.8.0
-pydantic>=2.5.0
-firebase-admin>=6.0.0
-pydantic-settings>=1.0.0
-pytest>=7.0.0
-requests>=2.28.0
-chonkie[semantic,hub]>=0.1.0
-tiktoken>=0.5.0
-transformers>=4.30.0
-sentence-transformers>=2.2.0
-numpy>=1.24.0
-google-genai>=0.2.0
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-dotenv==1.0.1
+chonkie==1.4.2
+requests==2.32.3
+huggingface_hub==0.27.1
+sentence-transformers==3.3.1
+
+# Optional: enables LLM-backed topic extraction (Gemini) when GOOGLE_API_KEY is set.
+# If omitted, the service falls back to a deterministic heuristic extractor.
+google-genai==1.28.0

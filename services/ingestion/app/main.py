@@ -1,281 +1,150 @@
-from fastapi import FastAPI, Depends, HTTPException, Header
-from fastapi.security import HTTPAuthorizationCredentials
+import os
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
 
-from .schemas import ChunkRequest, ChunkResponse, HealthResponse, TopicSearchRequest, TopicSearchResponse
-from .chunker import chunk_markdown
-from .config import DEFAULT_MAX_CHUNK_SIZE
-from .auth import verify_service_api_key, require_authenticated_user
+from .models import ChunkRequest, ChunkResponse, ChunkOut, TopicSearchRequest, TopicSearchResponse
+from .settings import get_settings
+from .chunking import chunk_markdown
+from .embeddings import MissingEmbeddingAPIKeyError, get_embedder
+from .topic_extraction import extract_topics
+from .ranking import matches_query, score_topic_match
 
-app = FastAPI(title='Chunker Service', version='0.1.0')
 
-# Configure CORS to allow requests from the Next.js frontend
+settings = get_settings()
+
+app = FastAPI(title="CourseWise Ingestion", version="0.1.0")
+
+
+# Dev-only in-memory store backing /search/topics.
+# This is intentionally ephemeral and resets on process restart.
+_LAST_CHUNKS: list[dict] = []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:9002",  # Next.js dev server
-        "http://localhost:3000",  # Alternative Next.js port
-    ],
+    allow_origins=settings.cors_allow_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"] ,
     allow_headers=["*"],
 )
 
-# Define allowed user roles for accessing the chunking endpoint
-ALLOWED_USER_ROLES = {'teacher', 'admin'}
 
-
-def auth_dependency(authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)):
-    """Authenticate either via service API key or via user bearer token.
-
-    RBAC policy: If caller uses service API key, allow. If caller authenticates with a user token,
-    require that the token contains a role claim in `ALLOWED_USER_ROLES`.
-    """
-    # If service key present and valid, allow (service-to-service calls)
-    if x_api_key:
-        if verify_service_api_key(x_api_key):
-            return {'service': True}
-        else:
-            raise HTTPException(status_code=401, detail='Invalid service API key')
-
-    # Otherwise require user token
-    if authorization:
-        # Adapter: extract token from header value
-        token = authorization.split('Bearer ')[-1]
-        creds = HTTPAuthorizationCredentials(scheme='Bearer', credentials=token)
-        payload = require_authenticated_user(creds)
-
-        role = payload.get('role')
-        if role not in ALLOWED_USER_ROLES:
-            raise HTTPException(status_code=403, detail='Insufficient role for this operation')
-        return payload
-
-    raise HTTPException(status_code=401, detail='Missing authentication')
-
-
-@app.get('/v1/health', response_model=HealthResponse, summary='Health check')
+@app.get("/health")
 def health():
-    return {'status': 'ok'}
+    return {"ok": True, "service": "ingestion", "version": app.version}
 
 
-@app.post('/v1/chunk', response_model=ChunkResponse, summary='Chunk Markdown')
-def chunk_endpoint(request: ChunkRequest):
-    """
-    Public endpoint for chunking markdown text.
-    
-    Optionally generates embeddings, extracts topics, and ranks chunks.
-    
-    This endpoint is publicly accessible for development and testing purposes.
-    For production, consider adding authentication or rate limiting.
-    """
-    max_size = request.max_chunk_size if request.max_chunk_size is not None else DEFAULT_MAX_CHUNK_SIZE
-    strategy = request.strategy if request.strategy else "semantic"
-    tokenizer = request.tokenizer if request.tokenizer else "gpt2"
-    overlap = request.overlap if request.overlap is not None else 0
+@app.post("/chunk", response_model=ChunkResponse)
+def chunk(req: ChunkRequest):
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="text is required")
 
-    # Generate chunks with optional overlap and embeddings (if native provider)
-    chunks = chunk_markdown(
-        request.markdown,
-        strategy=strategy,
-        max_chunk_size=max_size,
-        tokenizer=tokenizer,
-        overlap=overlap,
-        generate_embeddings=request.generate_embeddings,
-        embedding_provider=request.embedding_provider,
-        embedding_model=request.embedding_model,
-        similarity_threshold=request.similarity_threshold,
-        min_sentences_per_chunk=request.min_sentences_per_chunk
-    )
-    
-    # Extract topics if requested
-    if request.extract_topics:
-        try:
-            from .topic_extractor import extract_topics_from_chunks
-            
-            chunks = extract_topics_from_chunks(chunks, max_topics=5)
-        except ImportError as error:
-            if "google-genai" in str(error):
-                error_msg = "Topic extraction requires google-genai SDK. Install with: pip install google-genai"
-                raise HTTPException(status_code=400, detail=error_msg)
-            else:
-                error_msg = f"Missing dependency for topic extraction: {str(error)}"
-                raise HTTPException(status_code=400, detail=error_msg)
-        except Exception as error:
-            # Log warning but continue without topics
-            print(f"Warning: Topic extraction failed: {error}")
-            # Set empty topics for all chunks
-            for chunk in chunks:
-                chunk['topics'] = []
-    
-    # Rank content if requested
-    if request.rank_content:
-        try:
-            from .ranker import rank_chunks
-            
-            chunks = rank_chunks(chunks, document_title=request.document_title)
-        except Exception as error:
-            # Log warning but continue without ranking
-            print(f"Warning: Content ranking failed: {error}")
-            # Set default rank for all chunks
-            for chunk in chunks:
-                chunk['rank'] = 0.0
-    
-    # Generate embeddings if requested and NOT already done by pipeline
-    # (The pipeline handles sentence-transformers natively now)
-    if request.generate_embeddings:
-        # Check if first chunk already has embedding
-        has_embeddings = len(chunks) > 0 and 'embedding' in chunks[0]
-        
-        if not has_embeddings:
-            # Fallback for non-native providers (e.g. Vertex AI)
-            try:
-                from .embeddings import get_embedding_generator
-                
-                provider = request.embedding_provider if request.embedding_provider else "sentence-transformers"
-                
-                # If provider is sentence-transformers but we are here, it means
-                # Chonkie pipeline failed to load it or it wasn't used. 
-                # We can try manual generation or skip.
-                
-                model_name = request.embedding_model
-                
-                # Auto-select default model based on provider
-                if not model_name:
-                    if provider == "vertex-ai":
-                        model_name = "gemini-embedding-001"
-                    else:
-                        model_name = "all-MiniLM-L6-v2"
-                
-                # Get the appropriate generator
-                generator = get_embedding_generator(
-                    provider=provider,
-                    model_name=model_name
-                )
-                
-                chunks = generator.generate_chunk_embeddings(chunks)
-            except ImportError as error:
-                # Library not installed
-                if "google-genai" in str(error):
-                    error_msg = "Vertex AI requires google-genai SDK. Install with: pip install google-genai"
-                elif "sentence-transformers" in str(error):
-                    error_msg = "Sentence Transformers requires installation. Run: pip install sentence-transformers"
-                else:
-                    error_msg = f"Missing dependency: {str(error)}"
-                
-                raise HTTPException(status_code=400, detail=error_msg)
-            
-            except Exception as error:
-                error_str = str(error)
-                
-                # Check for common Vertex AI credential errors
-                if "GOOGLE_CLOUD_PROJECT" in error_str or "project" in error_str.lower():
-                    raise HTTPException(
-                        status_code=401,
-                        detail="Vertex AI credentials not configured. Please set GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, and GOOGLE_GENAI_USE_VERTEXAI=True environment variables, or run: gcloud auth application-default login"
-                    )
-                elif "credentials" in error_str.lower() or "authentication" in error_str.lower():
-                    raise HTTPException(
-                        status_code=401,
-                        detail="Vertex AI authentication failed. Run: gcloud auth application-default login"
-                    )
-                elif "api" in error_str.lower() and "enabled" in error_str.lower():
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Vertex AI API not enabled. Enable it in Google Cloud Console for your project."
-                    )
-                else:
-                    # Generic embedding error - log it but continue without embeddings
-                    print(f"Warning: Could not generate embeddings: {error}")
-                    import traceback
-                    traceback.print_exc()
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Embedding generation failed: {error_str}"
-                    )
-    
-    # Store chunks in memory for topic search (development only)
-    global _chunk_store
-    _chunk_store = chunks.copy()
-    
-    return {'chunks': chunks}
+    if len(req.text) > settings.max_input_chars:
+        raise HTTPException(
+            status_code=413,
+            detail=f"text too large (max {settings.max_input_chars} chars)",
+        )
 
+    chunk_size = req.chunk_size or settings.default_chunk_size
+    overlap_size = req.overlap_size if req.overlap_size is not None else settings.default_overlap_size
 
-# In-memory storage for demonstration (replace with database in production)
-_chunk_store = []
-
-
-@app.post('/v1/search/topics', response_model=TopicSearchResponse, summary='Search Chunks by Topics')
-def search_topics_endpoint(request: TopicSearchRequest):
-    """
-    Search for chunks by topics and rank.
-    
-    Note: This is an in-memory implementation for development.
-    For production, integrate with Firestore or another database.
-    
-    To use this endpoint:
-    1. First call /v1/chunk to create chunks (they'll be stored in memory)
-    2. Then call this endpoint to search by topics
-    """
-    search_topics_lower = [t.lower() for t in request.topics]
-    
-    # Filter chunks that match any of the requested topics
-    matching_chunks = []
-    for chunk in _chunk_store:
-        chunk_topics = [t.lower() for t in chunk.get('topics', [])]
-        # Check if any topic matches
-        if any(search_topic in chunk_topics for search_topic in search_topics_lower):
-            # Check rank threshold
-            if chunk.get('rank', 0.0) >= request.min_rank:
-                matching_chunks.append(chunk)
-    
-    # Sort by rank (descending)
-    matching_chunks.sort(key=lambda x: x.get('rank', 0.0), reverse=True)
-    
-    # Apply limit
-    limited_chunks = matching_chunks[:request.limit]
-    
-    return {
-        'chunks': limited_chunks,
-        'total_results': len(matching_chunks)
-    }
-
-
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
-    from fastapi.openapi.utils import get_openapi
-
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        routes=app.routes,
+    chunks_raw = chunk_markdown(
+        req.text,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size,
+        tokenizer=settings.tokenizer,
+        include_section_path=req.include_section_path,
     )
 
-    # Add security schemes for bearer JWT and API Key
-    openapi_schema.setdefault('components', {}).setdefault('securitySchemes', {})
-    openapi_schema['components']['securitySchemes']['bearerAuth'] = {
-        'type': 'http',
-        'scheme': 'bearer',
-        'bearerFormat': 'JWT'
-    }
-    openapi_schema['components']['securitySchemes']['ApiKeyAuth'] = {
-        'type': 'apiKey',
-        'in': 'header',
-        'name': 'X-API-Key'
-    }
+    warnings: list[str] = []
 
-    # Declare that /v1/chunk can be secured by either scheme (note: OpenAPI does not support OR natively,
-    # but clients will be able to see the available schemes). We attach both as possible security requirements.
-    for path, methods in openapi_schema.get('paths', {}).items():
-        if path == '/v1/chunk':
-            for method_name, method_spec in methods.items():
-                method_spec.setdefault('security', [])
-                method_spec['security'].append({'bearerAuth': []})
-                method_spec['security'].append({'ApiKeyAuth': []})
+    if req.include_topics:
+        debug_topics = os.getenv("TOPIC_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+        max_topics = req.max_topics if req.max_topics is not None else int(os.getenv("TOPIC_MAX_TOPICS", "10"))
+        model = req.topic_model
 
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
+        error_details: list[str] = []
+
+        for c in chunks_raw:
+            r = extract_topics(c["text"], model=model, max_topics=max_topics)
+            c["topics"] = r.topics
+            c["topic_source"] = r.source
+            if debug_topics and getattr(r, "error", None):
+                error_details.append(str(r.error))
+
+        # Provide a user-visible indication when we fall back.
+        sources = {str(c.get("topic_source") or "") for c in chunks_raw}
+        if any(s.startswith("heuristic:no_key") for s in sources):
+            warnings.append("Topic extraction fell back to a heuristic extractor because GOOGLE_API_KEY is not set.")
+        elif any(s.startswith("heuristic:no_dependency") for s in sources):
+            warnings.append("Topic extraction fell back to a heuristic extractor because the Gemini client dependency is not installed.")
+        elif any(s.startswith("heuristic:") for s in sources):
+            warnings.append("Topic extraction fell back to a heuristic extractor due to a Gemini error.")
+            if debug_topics and error_details:
+                unique = []
+                seen = set()
+                for d in error_details:
+                    if d not in seen:
+                        unique.append(d)
+                        seen.add(d)
+                    if len(unique) >= 2:
+                        break
+                warnings.append("Gemini error details: " + " | ".join(unique))
+
+    if req.include_embeddings:
+        if len(chunks_raw) > settings.max_embed_chunks:
+            raise HTTPException(
+                status_code=413,
+                detail=f"too many chunks to embed ({len(chunks_raw)} > {settings.max_embed_chunks}); increase MAX_EMBED_CHUNKS or reduce chunk size",
+            )
+
+        try:
+            embedder = get_embedder(provider=req.embedding_provider, model=req.embedding_model)
+            vectors = embedder.embed_texts([c["text"] for c in chunks_raw])
+        except MissingEmbeddingAPIKeyError as e:
+            raise HTTPException(status_code=401, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"embedding failed: {e}")
+
+        for c, v in zip(chunks_raw, vectors):
+            c["embedding"] = v
+
+    # Store most-recent results for dev search.
+    global _LAST_CHUNKS
+    _LAST_CHUNKS = chunks_raw
+
+    chunks = [ChunkOut(**c) for c in chunks_raw]
+
+    return ChunkResponse(chunk_count=len(chunks), chunks=chunks, warnings=warnings or None)
 
 
-app.openapi = custom_openapi
+@app.post("/search/topics", response_model=TopicSearchResponse)
+def search_topics(req: TopicSearchRequest):
+    if not _LAST_CHUNKS:
+        raise HTTPException(
+            status_code=400,
+            detail="No chunks available. Call POST /chunk first (with include_topics=true to extract topics).",
+        )
+
+    query_topics = [t for t in (req.topics or []) if isinstance(t, str) and t.strip()]
+    if not query_topics:
+        raise HTTPException(status_code=400, detail="topics is required")
+
+    filtered: list[dict] = []
+    for c in _LAST_CHUNKS:
+        if matches_query(chunk_topics=c.get("topics"), query_topics=query_topics, match=req.match):
+            score = score_topic_match(chunk_topics=c.get("topics"), query_topics=query_topics)
+            c_out = dict(c)
+            c_out["rank"] = score
+            filtered.append(c_out)
+
+    filtered.sort(key=lambda x: (-(x.get("rank") or 0.0), x.get("index") or 0))
+
+    if req.min_rank is not None:
+        filtered = [c for c in filtered if (c.get("rank") or 0.0) >= req.min_rank]
+
+    total = len(filtered)
+    limited = filtered[: req.limit]
+
+    chunks = [ChunkOut(**c) for c in limited]
+    return TopicSearchResponse(total_results=total, chunks=chunks)
