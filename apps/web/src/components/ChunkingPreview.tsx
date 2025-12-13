@@ -48,6 +48,8 @@ type EmbeddingProvider = "sentence-transformers" | "openai" | "openrouter" | "mo
 
 type TopicModel = "gemini-2.5-flash-lite" | "heuristic";
 
+type PreprocessModel = "amazon/nova-2-lite-v1:free";
+
 const ST_MODELS: Array<{ label: string; value: string }> = [
   {
     label: "sentence-transformers/all-MiniLM-L6-v2 (384d)",
@@ -134,6 +136,9 @@ export default function ChunkingPreview() {
   const [topicModel, setTopicModel] = useState<TopicModel>("gemini-2.5-flash-lite");
   const [maxTopics, setMaxTopics] = useState<number>(8);
 
+  const [includePreprocessing, setIncludePreprocessing] = useState<boolean>(false);
+  const [preprocessModel, setPreprocessModel] = useState<PreprocessModel>("amazon/nova-2-lite-v1:free");
+
   const [includeEmbeddings, setIncludeEmbeddings] = useState<boolean>(true);
   const [embeddingProvider, setEmbeddingProvider] = useState<EmbeddingProvider>("sentence-transformers");
   const [embeddingModel, setEmbeddingModel] = useState<string>(defaultModelFor("sentence-transformers"));
@@ -184,9 +189,14 @@ export default function ChunkingPreview() {
         chunk_size: chunkSize,
         overlap_size: overlapSize,
         include_section_path: true,
+        include_preprocessing: includePreprocessing,
         include_embeddings: includeEmbeddings,
         include_topics: includeTopics,
       };
+
+      if (includePreprocessing) {
+        payload.preprocess_model = preprocessModel;
+      }
 
       if (includeTopics) {
         payload.topic_model = topicModel;
@@ -200,11 +210,61 @@ export default function ChunkingPreview() {
         }
       }
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const postChunk = async (bodyPayload: Record<string, unknown>) => {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyPayload),
+        });
+        return res;
+      };
+
+      let res = await postChunk(payload);
+
+      // If embeddings were requested but an API key is missing, fall back to chunking without embeddings.
+      // This avoids a hard-fail when the user is primarily testing chunking/topics.
+      if (
+        !res.ok &&
+        res.status === 401 &&
+        includeEmbeddings &&
+        (embeddingProvider === "openai" || embeddingProvider === "openrouter")
+      ) {
+        const body = await res.text();
+        const missingKeyHint = body.toLowerCase().includes("missing openai_api_key")
+          ? "OPENAI_API_KEY"
+          : body.toLowerCase().includes("missing openrouter_api_key")
+            ? "OPENROUTER_API_KEY"
+            : "an API key";
+
+        toast({
+          title: "Embeddings skipped",
+          description: `Could not generate embeddings (${missingKeyHint} not set). Proceeding without embeddings.`,
+        });
+
+        const retryPayload: Record<string, unknown> = { ...payload, include_embeddings: false };
+        delete retryPayload.embedding_provider;
+        delete retryPayload.embedding_model;
+        res = await postChunk(retryPayload);
+
+        if (!res.ok) {
+          const retryBody = await res.text();
+          throw new Error(`${res.status} ${res.statusText}: ${retryBody}`);
+        }
+
+        const dataNoEmb = (await res.json()) as ChunkResponse;
+        const existingWarnings = Array.isArray(dataNoEmb.warnings) ? dataNoEmb.warnings : [];
+        const merged: ChunkResponse = {
+          ...dataNoEmb,
+          warnings: [...existingWarnings, `Embeddings skipped because ${missingKeyHint} is not set.`],
+        };
+        setResult(merged);
+
+        toast({
+          title: "Chunking complete",
+          description: `Created ${merged.chunk_count} chunks`,
+        });
+        return;
+      }
 
       if (!res.ok) {
         const body = await res.text();
@@ -228,7 +288,20 @@ export default function ChunkingPreview() {
     } finally {
       setIsRunning(false);
     }
-  }, [chunkSize, overlapSize, includeEmbeddings, includeTopics, embeddingProvider, embeddingModel, text, toast, topicModel, maxTopics]);
+  }, [
+    chunkSize,
+    overlapSize,
+    includePreprocessing,
+    preprocessModel,
+    includeEmbeddings,
+    includeTopics,
+    embeddingProvider,
+    embeddingModel,
+    text,
+    toast,
+    topicModel,
+    maxTopics,
+  ]);
 
   const runTopicSearch = useCallback(async () => {
     if (!result) {
@@ -324,6 +397,17 @@ export default function ChunkingPreview() {
     return Array.from(dims).sort((a, b) => a - b);
   }, [result]);
 
+  const rankByChunkIndex = useMemo(() => {
+    const map: Record<number, number> = {};
+    if (!topicSearchResult?.chunks?.length) return map;
+    for (const c of topicSearchResult.chunks) {
+      if (typeof c.index === "number" && typeof c.rank === "number") {
+        map[c.index] = c.rank;
+      }
+    }
+    return map;
+  }, [topicSearchResult]);
+
   return (
     <div className="grid gap-6">
       <Card>
@@ -414,6 +498,37 @@ export default function ChunkingPreview() {
                       To use Gemini extraction, configure the ingestion service with <span className="font-mono">GOOGLE_API_KEY</span>.
                     </>
                   )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="grid gap-1">
+                <div className="text-sm font-medium">LLM preprocessing</div>
+                <div className="text-xs text-muted-foreground">
+                  Optional: rewrite the input into clean Markdown before chunking (OpenRouter).
+                </div>
+              </div>
+              <Switch checked={includePreprocessing} onCheckedChange={setIncludePreprocessing} />
+            </div>
+
+            {includePreprocessing && (
+              <div className="grid gap-4 rounded-lg border p-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Preprocess model</Label>
+                    <Select value={preprocessModel} onValueChange={(v) => setPreprocessModel(v as PreprocessModel)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="amazon/nova-2-lite-v1:free">Amazon Nova 2 Lite (free)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Requires <span className="font-mono">OPENROUTER_API_KEY</span> in the ingestion service. If missing, the service will proceed with the original input and return a warning.
                 </div>
               </div>
             )}
@@ -720,10 +835,17 @@ export default function ChunkingPreview() {
           ) : (
             <ScrollArea className="h-[520px] pr-4">
               <div className="grid gap-3">
-                {result.chunks.map((c) => (
-                  <div key={c.index} className="rounded-lg border bg-card p-4">
+                {result.chunks.map((c) => {
+                  const derivedRank =
+                    typeof c.rank === "number" ? c.rank : rankByChunkIndex[c.index];
+
+                  return (
+                    <div key={c.index} className="rounded-lg border bg-card p-4">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <Badge variant="secondary">#{c.index}</Badge>
+                      {typeof derivedRank === "number" && (
+                        <Badge variant="outline">rank {derivedRank.toFixed(1)}</Badge>
+                      )}
                       {typeof c.token_count === "number" && (
                         <Badge variant="outline">{c.token_count} tokens</Badge>
                       )}
@@ -779,7 +901,8 @@ export default function ChunkingPreview() {
                       </Collapsible>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
           )}

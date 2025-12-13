@@ -6,9 +6,16 @@ class ChunkRequest(BaseModel):
     chunk_size: int | None = Field(None, ge=50, le=4000)
     overlap_size: int | None = Field(None, ge=0, le=1000)
     include_section_path: bool = True
+    include_preprocessing: bool = False
     include_embeddings: bool = False
     include_topics: bool = False
     include_ranking: bool = False
+
+    # Preprocessing
+    preprocess_model: str | None = Field(
+        None,
+        description="Optional per-request preprocessing model override (default: amazon/nova-2-lite-v1:free).",
+    )
 
     # Topics
     topic_model: str | None = Field(

@@ -9,12 +9,18 @@ def _norm(s: str) -> str:
     return s
 
 
-def score_topic_match(*, chunk_topics: list[str] | None, query_topics: list[str]) -> float:
+def score_topic_match(
+    *,
+    chunk_topics: list[str] | None,
+    query_topics: list[str],
+    chunk_text: str | None = None,
+) -> float:
     """Deterministic topic relevance score in range [0, 100].
 
     Heuristic goals:
     - Prefer chunks matching more query topics
     - Prefer exact matches over partial matches
+    - Break ties using simple evidence in chunk text (e.g., repeated mentions)
     - Provide a stable score even when topics are sparse
     """
 
@@ -53,6 +59,20 @@ def score_topic_match(*, chunk_topics: list[str] | None, query_topics: list[str]
 
     # Small bonus when the chunk has focused topic list (less noisy)
     score += max(0.0, 5.0 - max(0, len(ct_set) - 8) * 0.5)
+
+    # Tie-breaker evidence: count occurrences of query phrases in the chunk text.
+    # This is intentionally simple/deterministic and capped to avoid overpowering topic matches.
+    if isinstance(chunk_text, str) and chunk_text.strip():
+        haystack = _norm(chunk_text)
+        occurrences = 0
+        for qt in q_set:
+            if not qt:
+                continue
+            # Use substring counts on normalized text; good enough for short query phrases.
+            occurrences += haystack.count(qt)
+
+        # 0->0, 1->2, 2->4, ... capped
+        score += min(occurrences * 2.0, 15.0)
 
     # Clamp.
     if score < 0.0:

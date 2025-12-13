@@ -93,17 +93,22 @@ def chunk_markdown(
     - Add small overlap to avoid losing context at boundaries.
     """
 
-    pipeline_markdown = (
-        Pipeline()
-        .chunk_with("recursive", tokenizer=tokenizer, chunk_size=chunk_size, recipe="markdown")
-        .refine_with("overlap", context_size=overlap_size)
+    # Note: Chonkie's overlap refinery requires a positive integer context_size.
+    # Treat overlap_size <= 0 as "no overlap".
+    base_markdown = Pipeline().chunk_with(
+        "recursive",
+        tokenizer=tokenizer,
+        chunk_size=chunk_size,
+        recipe="markdown",
     )
+    base_plain = Pipeline().chunk_with("recursive", tokenizer=tokenizer, chunk_size=chunk_size)
 
-    pipeline_plain = (
-        Pipeline()
-        .chunk_with("recursive", tokenizer=tokenizer, chunk_size=chunk_size)
-        .refine_with("overlap", context_size=overlap_size)
-    )
+    if overlap_size and overlap_size > 0:
+        pipeline_markdown = base_markdown.refine_with("overlap", context_size=overlap_size)
+        pipeline_plain = base_plain.refine_with("overlap", context_size=overlap_size)
+    else:
+        pipeline_markdown = base_markdown
+        pipeline_plain = base_plain
 
     out: list[dict] = []
     global_index = 0

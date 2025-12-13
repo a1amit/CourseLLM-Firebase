@@ -7,6 +7,7 @@ from .models import ChunkRequest, ChunkResponse, ChunkOut, TopicSearchRequest, T
 from .settings import get_settings
 from .chunking import chunk_markdown
 from .embeddings import MissingEmbeddingAPIKeyError, get_embedder
+from .preprocess import MissingPreprocessAPIKeyError, get_preprocessor
 from .topic_extraction import extract_topics
 from .ranking import matches_query, score_topic_match
 
@@ -45,18 +46,41 @@ def chunk(req: ChunkRequest):
             detail=f"text too large (max {settings.max_input_chars} chars)",
         )
 
+    warnings: list[str] = []
+
+    # Optional LLM preprocessing: normalize to clean Markdown before deterministic chunking.
+    preprocess_enabled = bool(req.include_preprocessing) or (
+        os.getenv("PREPROCESS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    )
+
+    text_for_chunking = req.text
+    if preprocess_enabled:
+        max_chars = int(os.getenv("PREPROCESS_MAX_INPUT_CHARS", "40000"))
+        if len(text_for_chunking) > max_chars:
+            warnings.append(
+                f"Preprocessing skipped because input is too large ({len(text_for_chunking)} > {max_chars} chars)."
+            )
+        else:
+            try:
+                pre = get_preprocessor(model=req.preprocess_model)
+                text_for_chunking = pre.preprocess_to_markdown(text_for_chunking)
+            except MissingPreprocessAPIKeyError:
+                warnings.append(
+                    "Preprocessing requested but OPENROUTER_API_KEY is not set; proceeding with original input."
+                )
+            except Exception as e:
+                warnings.append(f"Preprocessing failed; proceeding with original input. ({type(e).__name__})")
+
     chunk_size = req.chunk_size or settings.default_chunk_size
     overlap_size = req.overlap_size if req.overlap_size is not None else settings.default_overlap_size
 
     chunks_raw = chunk_markdown(
-        req.text,
+        text_for_chunking,
         chunk_size=chunk_size,
         overlap_size=overlap_size,
         tokenizer=settings.tokenizer,
         include_section_path=req.include_section_path,
     )
-
-    warnings: list[str] = []
 
     if req.include_topics:
         debug_topics = os.getenv("TOPIC_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -135,7 +159,11 @@ def search_topics(req: TopicSearchRequest):
     filtered: list[dict] = []
     for c in _LAST_CHUNKS:
         if matches_query(chunk_topics=c.get("topics"), query_topics=query_topics, match=req.match):
-            score = score_topic_match(chunk_topics=c.get("topics"), query_topics=query_topics)
+            score = score_topic_match(
+                chunk_topics=c.get("topics"),
+                query_topics=query_topics,
+                chunk_text=c.get("text"),
+            )
             c_out = dict(c)
             c_out["rank"] = score
             filtered.append(c_out)
