@@ -37,6 +37,12 @@ type TopicSearchResponse = {
   chunks: ChunkOut[];
 };
 
+type SemanticSearchResponse = {
+  total_results: number;
+  chunks: ChunkOut[];
+  embedding_dim: number | null;
+};
+
 const DEFAULT_URL =
   process.env.NEXT_PUBLIC_INGESTION_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
@@ -155,6 +161,13 @@ export default function ChunkingPreview() {
   const [isSearchingTopics, setIsSearchingTopics] = useState<boolean>(false);
   const [topicSearchResult, setTopicSearchResult] = useState<TopicSearchResponse | null>(null);
 
+  // Semantic search state
+  const [semanticQuery, setSemanticQuery] = useState<string>("");
+  const [semanticMinSimilarity, setSemanticMinSimilarity] = useState<string>("");
+  const [semanticLimit, setSemanticLimit] = useState<number>(25);
+  const [isSearchingSemantic, setIsSearchingSemantic] = useState<boolean>(false);
+  const [semanticSearchResult, setSemanticSearchResult] = useState<SemanticSearchResponse | null>(null);
+
   const topicQueryTerms = useMemo(
     () =>
       topicQuery
@@ -173,6 +186,7 @@ export default function ChunkingPreview() {
     if (next === "custom") setText("");
     setResult(null);
     setTopicSearchResult(null);
+    setSemanticSearchResult(null);
   }, []);
 
   const runChunking = useCallback(async () => {
@@ -374,6 +388,71 @@ export default function ChunkingPreview() {
     }
   }, [result, toast, topicQuery, topicMatch, topicLimit, topicMinRank]);
 
+  const runSemanticSearch = useCallback(async () => {
+    if (!result) {
+      toast({
+        title: "No chunks yet",
+        description: "Run chunking first with embeddings enabled.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!semanticQuery.trim()) {
+      toast({
+        title: "Enter a query",
+        description: "Type a natural language query to search for similar content.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSearchingSemantic(true);
+    setSemanticSearchResult(null);
+
+    try {
+      const url = `${DEFAULT_URL.replace(/\/$/, "")}/search/semantic`;
+
+      const payload: Record<string, unknown> = {
+        query: semanticQuery.trim(),
+        limit: semanticLimit,
+      };
+
+      const parsedMinSim = semanticMinSimilarity.trim().length ? Number(semanticMinSimilarity) / 100 : null;
+      if (parsedMinSim !== null && Number.isFinite(parsedMinSim)) {
+        payload.min_similarity = parsedMinSim;
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`${res.status} ${res.statusText}: ${body}`);
+      }
+
+      const data = (await res.json()) as SemanticSearchResponse;
+      setSemanticSearchResult(data);
+
+      toast({
+        title: "Semantic search complete",
+        description: `Found ${data.total_results} matches`,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      toast({
+        title: "Semantic search failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearchingSemantic(false);
+    }
+  }, [result, toast, semanticQuery, semanticLimit, semanticMinSimilarity]);
+
   const stats = useMemo(() => {
     if (!result) return null;
     const tokenCounts = result.chunks
@@ -386,7 +465,7 @@ export default function ChunkingPreview() {
 
     return { avgTokens, tokenCountsKnown: tokenCounts.length };
   }, [result]);
-  
+
   const embeddingDims = useMemo(() => {
     if (!result) return null;
     const dims = new Set<number>();
@@ -725,99 +804,185 @@ export default function ChunkingPreview() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="topicQuery">Topics (comma-separated)</Label>
-              <Input
-                id="topicQuery"
-                value={topicQuery}
-                onChange={(e) => setTopicQuery(e.target.value)}
-                placeholder="prd, metrics"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Match mode</Label>
-              <Select value={topicMatch} onValueChange={(v) => setTopicMatch(v as "any" | "all")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">any</SelectItem>
-                  <SelectItem value="all">all</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="topicMinRank">Min rank (0–100, optional)</Label>
-              <Input
-                id="topicMinRank"
-                type="number"
-                min={0}
-                max={100}
-                value={topicMinRank}
-                onChange={(e) => setTopicMinRank(e.target.value)}
-                placeholder=""
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="topicLimit">Limit</Label>
-              <Input
-                id="topicLimit"
-                type="number"
-                min={1}
-                max={200}
-                value={topicLimit}
-                onChange={(e) => setTopicLimit(Number(e.target.value))}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button onClick={runTopicSearch} disabled={isSearchingTopics}>
-              {isSearchingTopics ? "Searching…" : "Search"}
-            </Button>
-            {topicSearchResult && (
-              <div className="text-sm text-muted-foreground">
-                {topicSearchResult.total_results} results
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="topicQuery">Topics (comma-separated)</Label>
+                <Input
+                  id="topicQuery"
+                  value={topicQuery}
+                  onChange={(e) => setTopicQuery(e.target.value)}
+                  placeholder="prd, metrics"
+                />
               </div>
-            )}
-          </div>
+              <div className="grid gap-2">
+                <Label>Match mode</Label>
+                <Select value={topicMatch} onValueChange={(v) => setTopicMatch(v as "any" | "all")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">any</SelectItem>
+                    <SelectItem value="all">all</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-          {topicSearchResult && topicSearchResult.chunks.length > 0 && (
-            <ScrollArea className="h-[240px] pr-4">
-              <div className="grid gap-3">
-                {topicSearchResult.chunks.map((c) => (
-                  <div key={`search-${c.index}`} className="rounded-lg border bg-card p-3">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <Badge variant="secondary">#{c.index}</Badge>
-                      {typeof c.rank === "number" && (
-                        <Badge variant="outline">rank {c.rank.toFixed(1)}</Badge>
-                      )}
-                      {Array.isArray(c.topics) && c.topics.length > 0 &&
-                        c.topics.map((t) => {
-                          const matched = topicMatchesQuery(t, topicQueryTerms);
-                          return (
-                            <Badge key={`${c.index}-${t}`} variant={matched ? "destructive" : "outline"}>
-                              {t}
-                            </Badge>
-                          );
-                        })}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="topicMinRank">Min rank (0–100, optional)</Label>
+                <Input
+                  id="topicMinRank"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={topicMinRank}
+                  onChange={(e) => setTopicMinRank(e.target.value)}
+                  placeholder=""
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="topicLimit">Limit</Label>
+                <Input
+                  id="topicLimit"
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={topicLimit}
+                  onChange={(e) => setTopicLimit(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button onClick={runTopicSearch} disabled={isSearchingTopics}>
+                {isSearchingTopics ? "Searching…" : "Search"}
+              </Button>
+              {topicSearchResult && (
+                <div className="text-sm text-muted-foreground">
+                  {topicSearchResult.total_results} results
+                </div>
+              )}
+            </div>
+
+            {topicSearchResult && topicSearchResult.chunks.length > 0 && (
+              <ScrollArea className="h-[240px] pr-4">
+                <div className="grid gap-3">
+                  {topicSearchResult.chunks.map((c) => (
+                    <div key={`search-${c.index}`} className="rounded-lg border bg-card p-3">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <Badge variant="secondary">#{c.index}</Badge>
+                        {typeof c.rank === "number" && (
+                          <Badge variant="outline">rank {c.rank.toFixed(1)}</Badge>
+                        )}
+                        {Array.isArray(c.topics) && c.topics.length > 0 &&
+                          c.topics.map((t) => {
+                            const matched = topicMatchesQuery(t, topicQueryTerms);
+                            return (
+                              <Badge key={`${c.index}-${t}`} variant={matched ? "destructive" : "outline"}>
+                                {t}
+                              </Badge>
+                            );
+                          })}
+                      </div>
+                      <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {c.text.length > 500 ? `${c.text.slice(0, 500)}…` : c.text}
+                      </pre>
                     </div>
-                    <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {c.text.length > 500 ? `${c.text.slice(0, 500)}…` : c.text}
-                    </pre>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
 
-          {topicSearchResult && topicSearchResult.chunks.length === 0 && (
-            <div className="text-sm text-muted-foreground">No matches found.</div>
-          )}
+            {topicSearchResult && topicSearchResult.chunks.length === 0 && (
+              <div className="text-sm text-muted-foreground">No matches found.</div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {result && includeEmbeddings && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Semantic Search</CardTitle>
+            <CardDescription>
+              Search for similar content using embedding cosine similarity (dev-only, in-memory).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2 md:col-span-2">
+                <Label htmlFor="semanticQuery">Query</Label>
+                <Input
+                  id="semanticQuery"
+                  value={semanticQuery}
+                  onChange={(e) => setSemanticQuery(e.target.value)}
+                  placeholder="Describe what you're looking for..."
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="semanticMinSim">Min similarity (0–100, optional)</Label>
+                <Input
+                  id="semanticMinSim"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={semanticMinSimilarity}
+                  onChange={(e) => setSemanticMinSimilarity(e.target.value)}
+                  placeholder=""
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="semanticLimit">Limit</Label>
+                <Input
+                  id="semanticLimit"
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={semanticLimit}
+                  onChange={(e) => setSemanticLimit(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button onClick={runSemanticSearch} disabled={isSearchingSemantic}>
+                {isSearchingSemantic ? "Searching…" : "Search"}
+              </Button>
+              {semanticSearchResult && (
+                <div className="text-sm text-muted-foreground">
+                  {semanticSearchResult.total_results} results
+                  {semanticSearchResult.embedding_dim && (
+                    <span> · {semanticSearchResult.embedding_dim}d embeddings</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {semanticSearchResult && semanticSearchResult.chunks.length > 0 && (
+              <ScrollArea className="h-[240px] pr-4">
+                <div className="grid gap-3">
+                  {semanticSearchResult.chunks.map((c) => (
+                    <div key={`semantic-${c.index}`} className="rounded-lg border bg-card p-3">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <Badge variant="secondary">#{c.index}</Badge>
+                        {typeof c.rank === "number" && (
+                          <Badge variant="outline">similarity {c.rank.toFixed(1)}%</Badge>
+                        )}
+                        {c.section_path && <Badge variant="outline">{c.section_path}</Badge>}
+                      </div>
+                      <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {c.text.length > 500 ? `${c.text.slice(0, 500)}…` : c.text}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+
+            {semanticSearchResult && semanticSearchResult.chunks.length === 0 && (
+              <div className="text-sm text-muted-foreground">No matches found.</div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -841,66 +1006,66 @@ export default function ChunkingPreview() {
 
                   return (
                     <div key={c.index} className="rounded-lg border bg-card p-4">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <Badge variant="secondary">#{c.index}</Badge>
-                      {typeof derivedRank === "number" && (
-                        <Badge variant="outline">rank {derivedRank.toFixed(1)}</Badge>
-                      )}
-                      {typeof c.token_count === "number" && (
-                        <Badge variant="outline">{c.token_count} tokens</Badge>
-                      )}
-                      {Array.isArray(c.embedding) && (
-                        <Badge variant="outline">emb {c.embedding.length}d</Badge>
-                      )}
-                      {Array.isArray(c.topics) && c.topics.length > 0 && (
-                        <Badge variant="outline">topics: {c.topics.join(", ")}</Badge>
-                      )}
-                      {c.topic_source && (
-                        <Badge variant="outline">{c.topic_source}</Badge>
-                      )}
-                      {c.section_path && <Badge variant="outline">{c.section_path}</Badge>}
-                    </div>
-                    <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {c.text}
-                    </pre>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <Badge variant="secondary">#{c.index}</Badge>
+                        {typeof derivedRank === "number" && (
+                          <Badge variant="outline">rank {derivedRank.toFixed(1)}</Badge>
+                        )}
+                        {typeof c.token_count === "number" && (
+                          <Badge variant="outline">{c.token_count} tokens</Badge>
+                        )}
+                        {Array.isArray(c.embedding) && (
+                          <Badge variant="outline">emb {c.embedding.length}d</Badge>
+                        )}
+                        {Array.isArray(c.topics) && c.topics.length > 0 && (
+                          <Badge variant="outline">topics: {c.topics.join(", ")}</Badge>
+                        )}
+                        {c.topic_source && (
+                          <Badge variant="outline">{c.topic_source}</Badge>
+                        )}
+                        {c.section_path && <Badge variant="outline">{c.section_path}</Badge>}
+                      </div>
+                      <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {c.text}
+                      </pre>
 
-                    {Array.isArray(c.embedding) && c.embedding.length > 0 && (
-                      <Collapsible
-                        open={!!openEmbeddings[c.index]}
-                        onOpenChange={(open) =>
-                          setOpenEmbeddings((prev) => ({ ...prev, [c.index]: open }))
-                        }
-                      >
-                        <div className="mt-3 grid gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-xs text-muted-foreground">
-                              <span className="font-medium">Embedding (vector values):</span>{" "}
-                              <span className="font-mono break-all">{formatEmbeddingPreview(c.embedding)}</span>
-                            </div>
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-7 px-2">
-                                {openEmbeddings[c.index]
-                                  ? "Hide"
-                                  : `Show all (${c.embedding.length})`}
-                              </Button>
-                            </CollapsibleTrigger>
-                          </div>
-                          <CollapsibleContent>
-                            <div className="rounded-md border bg-muted p-2">
-                              <div className="text-xs text-muted-foreground mb-2">
-                                Full embedding vector:
+                      {Array.isArray(c.embedding) && c.embedding.length > 0 && (
+                        <Collapsible
+                          open={!!openEmbeddings[c.index]}
+                          onOpenChange={(open) =>
+                            setOpenEmbeddings((prev) => ({ ...prev, [c.index]: open }))
+                          }
+                        >
+                          <div className="mt-3 grid gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-xs text-muted-foreground">
+                                <span className="font-medium">Embedding (vector values):</span>{" "}
+                                <span className="font-mono break-all">{formatEmbeddingPreview(c.embedding)}</span>
                               </div>
-                              <ScrollArea className="max-h-[220px]">
-                                <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                                  {formatEmbeddingAll(c.embedding)}
-                                </pre>
-                              </ScrollArea>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 px-2">
+                                  {openEmbeddings[c.index]
+                                    ? "Hide"
+                                    : `Show all (${c.embedding.length})`}
+                                </Button>
+                              </CollapsibleTrigger>
                             </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    )}
-                  </div>
+                            <CollapsibleContent>
+                              <div className="rounded-md border bg-muted p-2">
+                                <div className="text-xs text-muted-foreground mb-2">
+                                  Full embedding vector:
+                                </div>
+                                <ScrollArea className="max-h-[220px]">
+                                  <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                                    {formatEmbeddingAll(c.embedding)}
+                                  </pre>
+                                </ScrollArea>
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                      )}
+                    </div>
                   );
                 })}
               </div>

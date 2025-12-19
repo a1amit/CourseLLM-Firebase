@@ -69,3 +69,15 @@ class TopicSearchRequest(BaseModel):
 class TopicSearchResponse(BaseModel):
     total_results: int
     chunks: list[ChunkOut]
+
+
+class SemanticSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="Natural language query to search for")
+    limit: int = Field(25, ge=1, le=200)
+    min_similarity: float | None = Field(None, ge=0.0, le=1.0, description="Minimum cosine similarity threshold (0-1)")
+
+
+class SemanticSearchResponse(BaseModel):
+    total_results: int
+    chunks: list[ChunkOut]
+    embedding_dim: int | None = None

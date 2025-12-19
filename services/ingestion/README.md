@@ -68,6 +68,7 @@ uvicorn app.main:app --reload --port 8000
 - `GET /health`
 - `POST /chunk`
 - `POST /search/topics` (development only; searches the most recent `/chunk` results stored in memory)
+- `POST /search/semantic` (development only; semantic similarity search using embeddings)
 
 Swagger UI: http://localhost:8000/docs
 
@@ -130,6 +131,22 @@ curl -X POST http://localhost:8000/search/topics \
     "limit": 25
   }'
 ```
+
+### `POST /search/semantic`
+
+Semantic similarity search using embeddings. Requires that you called `POST /chunk` first with `include_embeddings=true`.
+
+```bash
+curl -X POST http://localhost:8000/search/semantic \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "machine learning optimization",
+    "min_similarity": 0.5,
+    "limit": 25
+  }'
+```
+
+The response includes chunks ranked by cosine similarity (scaled to 0-100), plus `embedding_dim` metadata.
 
 ## Configuration
 

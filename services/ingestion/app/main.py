@@ -3,13 +3,21 @@ import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import ChunkRequest, ChunkResponse, ChunkOut, TopicSearchRequest, TopicSearchResponse
+from .models import (
+    ChunkRequest,
+    ChunkResponse,
+    ChunkOut,
+    TopicSearchRequest,
+    TopicSearchResponse,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
+)
 from .settings import get_settings
 from .chunking import chunk_markdown
 from .embeddings import MissingEmbeddingAPIKeyError, get_embedder
 from .preprocess import MissingPreprocessAPIKeyError, get_preprocessor
 from .topic_extraction import extract_topics
-from .ranking import matches_query, score_topic_match
+from .ranking import matches_query, score_topic_match, cosine_similarity
 
 
 settings = get_settings()
@@ -135,6 +143,11 @@ def chunk(req: ChunkRequest):
         for c, v in zip(chunks_raw, vectors):
             c["embedding"] = v
 
+        # Save embedder settings for semantic search
+        global _LAST_EMBEDDER_PROVIDER, _LAST_EMBEDDER_MODEL
+        _LAST_EMBEDDER_PROVIDER = req.embedding_provider
+        _LAST_EMBEDDER_MODEL = req.embedding_model
+
     # Store most-recent results for dev search.
     global _LAST_CHUNKS
     _LAST_CHUNKS = chunks_raw
@@ -178,3 +191,69 @@ def search_topics(req: TopicSearchRequest):
 
     chunks = [ChunkOut(**c) for c in limited]
     return TopicSearchResponse(total_results=total, chunks=chunks)
+
+
+# Track last embedder settings to reuse for query embedding
+_LAST_EMBEDDER_PROVIDER: str | None = None
+_LAST_EMBEDDER_MODEL: str | None = None
+
+
+@app.post("/search/semantic", response_model=SemanticSearchResponse)
+def search_semantic(req: SemanticSearchRequest):
+    """Search chunks by semantic similarity using embeddings.
+
+    Requires that POST /chunk was called with include_embeddings=true.
+    Embeds the query using the same embedder settings and returns chunks
+    ranked by cosine similarity.
+    """
+    if not _LAST_CHUNKS:
+        raise HTTPException(
+            status_code=400,
+            detail="No chunks available. Call POST /chunk first (with include_embeddings=true).",
+        )
+
+    # Check if any chunks have embeddings
+    chunks_with_embeddings = [c for c in _LAST_CHUNKS if c.get("embedding")]
+    if not chunks_with_embeddings:
+        raise HTTPException(
+            status_code=400,
+            detail="No embeddings found in stored chunks. Call POST /chunk with include_embeddings=true.",
+        )
+
+    # Embed the query using cached embedder settings
+    try:
+        embedder = get_embedder(provider=_LAST_EMBEDDER_PROVIDER, model=_LAST_EMBEDDER_MODEL)
+        query_embedding = embedder.embed_texts([req.query])[0]
+    except MissingEmbeddingAPIKeyError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to embed query: {e}")
+
+    # Compute similarity for each chunk
+    results: list[dict] = []
+    for c in chunks_with_embeddings:
+        chunk_emb = c.get("embedding")
+        if not chunk_emb:
+            continue
+
+        similarity = cosine_similarity(query_embedding, chunk_emb)
+        c_out = dict(c)
+        c_out["rank"] = round(similarity * 100, 2)  # Scale to 0-100 for consistency with topic search
+        results.append(c_out)
+
+    # Sort by similarity descending
+    results.sort(key=lambda x: (-(x.get("rank") or 0.0), x.get("index") or 0))
+
+    # Apply min_similarity filter
+    if req.min_similarity is not None:
+        min_rank = req.min_similarity * 100  # Convert to 0-100 scale
+        results = [c for c in results if (c.get("rank") or 0.0) >= min_rank]
+
+    total = len(results)
+    limited = results[: req.limit]
+
+    # Get embedding dimension for response metadata
+    embedding_dim = len(query_embedding) if query_embedding else None
+
+    chunks = [ChunkOut(**c) for c in limited]
+    return SemanticSearchResponse(total_results=total, chunks=chunks, embedding_dim=embedding_dim)
