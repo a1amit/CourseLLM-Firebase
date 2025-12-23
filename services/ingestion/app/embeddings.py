@@ -79,11 +79,6 @@ def get_embedder(*, provider: str | None = None, model: str | None = None) -> Em
         dim = int(os.getenv("EMBEDDING_DIM", "64"))
         return MockEmbedder(dim=dim)
 
-    if provider in {"sentence-transformers", "st"}:
-        model_name = model or os.getenv("ST_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-        normalize = os.getenv("ST_NORMALIZE", "true").strip().lower() not in {"0", "false", "no"}
-        return SentenceTransformersEmbedder(model_name=model_name, normalize=normalize)
-
     if provider in {"openai", "openrouter"}:
         api_key = os.getenv("OPENAI_API_KEY") if provider == "openai" else os.getenv("OPENROUTER_API_KEY")
         if not api_key:
@@ -102,7 +97,7 @@ def get_embedder(*, provider: str | None = None, model: str | None = None) -> Em
                 os.getenv("OPENAI_EMBED_MODEL")
                 if provider == "openai"
                 else os.getenv("OPENROUTER_EMBED_MODEL")
-            ) or "text-embedding-3-small"
+            ) or "qwen/qwen3-embedding-8b"
         return OpenAICompatibleEmbedder(base_url=base_url, api_key=api_key, model=model_name)
 
     if provider == "vertex":
@@ -110,37 +105,3 @@ def get_embedder(*, provider: str | None = None, model: str | None = None) -> Em
         raise RuntimeError("EMBEDDING_PROVIDER=vertex not implemented yet; use mock or openai/openrouter")
 
     raise RuntimeError(f"Unknown EMBEDDING_PROVIDER={provider}")
-
-
-_ST_MODEL_CACHE = {}
-
-
-@dataclass(frozen=True)
-class SentenceTransformersEmbedder:
-    model_name: str
-    normalize: bool = True
-
-    def _get_model(self):
-        # Keep a process-wide cache so we don't reload the model every request.
-        model = _ST_MODEL_CACHE.get(self.model_name)
-        if model is None:
-            try:
-                from sentence_transformers import SentenceTransformer
-            except Exception as e:
-                raise RuntimeError(
-                    "sentence-transformers is not installed; add it to requirements or use EMBEDDING_PROVIDER=mock"
-                ) from e
-
-            model = SentenceTransformer(self.model_name)
-            _ST_MODEL_CACHE[self.model_name] = model
-        return model
-
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        model = self._get_model()
-        vectors = model.encode(
-            texts,
-            normalize_embeddings=self.normalize,
-            convert_to_numpy=True,
-            show_progress_bar=False,
-        )
-        return [v.astype("float32").tolist() for v in vectors]

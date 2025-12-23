@@ -2,46 +2,36 @@
 
 The ingestion service turns markdown into RAG-friendly chunks and can optionally add:
 
-- LLM preprocessing to normalize messy input into clean Markdown (OpenRouter Nova 2 Lite)
-- embeddings (local sentence-transformers or OpenAI/OpenRouter)
-- per-chunk topics (Gemini when configured; heuristic fallback)
-- dev-only topic search + ranking over the most recent chunking run
+- LLM preprocessing to normalize messy input into clean Markdown (OpenRouter Gemma 3)
+- embeddings (OpenRouter qwen3-embedding-8b)
+- per-chunk topics (deterministic heuristic extractor)
+- dev-only semantic search over the most recent chunking run
 
 ## Architecture & pipeline
 
 ```mermaid
 flowchart TB
   A["Input text or Markdown"] --> P{"include_preprocessing"}
-  P -- Yes --> P1["LLM preprocessing<br/>normalize to clean Markdown"]
+  P -- Yes --> P1["LLM preprocessing<br/>google/gemma-3-27b-it:free"]
   P -- No --> B["Markdown-aware section splitter<br/>ignores fenced code blocks"]
   P1 --> B
   B --> C["Recursive chunking + overlap<br/>Chonkie based"]
   C --> D["Chunks: index, text, token_count, section_path optional"]
 
   D --> E{"include_topics"}
-  E -- Yes --> F["Topic extraction"]
-  F --> G{"Gemini available"}
-  G -- Yes --> H["Gemini model: topic_model or TOPIC_MODEL"]
-  G -- No --> I["Heuristic fallback: deterministic"]
-  H --> J["Chunks + topics: topic_source gemini"]
-  I --> K["Chunks + topics: topic_source heuristic"]
-  J --> L["Continue"]
-  K --> L
+  E -- Yes --> I["Heuristic topic extraction<br/>deterministic, no API key needed"]
+  I --> K["Chunks + topics"]
+  K --> L["Continue"]
   E -- No --> L
 
   L --> M{"include_embeddings"}
-  M -- Yes --> N["Embedding generation: sentence-transformers, OpenAI, OpenRouter"]
+  M -- Yes --> N["OpenRouter embeddings<br/>qwen/qwen3-embedding-8b"]
   M -- No --> O["Skip embeddings"]
-  N --> P["Chunks + embedding vectors"]
-  O --> P
+  N --> Q["Chunks + embedding vectors"]
+  O --> Q
 
-  P --> Q["Store last chunks in memory<br/>dev only backing for /search/topics"]
-  Q --> R["Return POST /chunk response<br/>plus optional warnings"]
-
-  S["POST /search/topics"] --> T["Filter: matches_query"]
-  T --> U["Rank: score_topic_match 0 to 100"]
-  U --> V["Return ranked chunks with rank"]
-  Q -.-> T
+  Q --> R["Store last chunks in memory<br/>dev only backing for /search/semantic"]
+  R --> S["Return POST /chunk response<br/>plus optional warnings"]
 ```
 
 ## Run locally
@@ -52,8 +42,6 @@ Docker (recommended):
 cd services/ingestion
 docker compose up --build
 ```
-
-Note: the first Docker build can take ~10 minutes because it installs the local embeddings dependencies (sentence-transformers / PyTorch stack). Subsequent builds are much faster due to Docker layer caching.
 
 Local Python (requires Python 3.11+):
 
@@ -67,7 +55,6 @@ uvicorn app.main:app --reload --port 8000
 
 - `GET /health`
 - `POST /chunk`
-- `POST /search/topics` (development only; searches the most recent `/chunk` results stored in memory)
 - `POST /search/semantic` (development only; semantic similarity search using embeddings)
 
 Swagger UI: http://localhost:8000/docs
@@ -93,8 +80,8 @@ curl -X POST http://localhost:8000/chunk \
     "include_topics": true,
     "max_topics": 8,
     "include_embeddings": true,
-    "embedding_provider": "sentence-transformers",
-    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
+    "embedding_provider": "openrouter",
+    "embedding_model": "qwen/qwen3-embedding-8b"
   }'
 ```
 
@@ -106,7 +93,7 @@ curl -X POST http://localhost:8000/chunk \
   -d '{
     "text": "Lecture 3 - intro\n\nSLIDE 1: ...",
     "include_preprocessing": true,
-    "preprocess_model": "amazon/nova-2-lite-v1:free"
+    "preprocess_model": "google/gemma-3-27b-it:free"
   }'
 ```
 
@@ -116,21 +103,6 @@ Response:
 - optional `topics` + `topic_source`
 - optional `embedding`
 - optional response-level `warnings` (e.g., when topic extraction falls back)
-
-### `POST /search/topics`
-
-Important: this endpoint requires that you called `POST /chunk` first (ideally with `include_topics=true`).
-
-```bash
-curl -X POST http://localhost:8000/search/topics \
-  -H "Content-Type: application/json" \
-  -d '{
-    "topics": ["prd", "metrics"],
-    "match": "any",
-    "min_rank": 50,
-    "limit": 25
-  }'
-```
 
 ### `POST /search/semantic`
 
@@ -165,46 +137,23 @@ Create it from the template:
 
 ### Embeddings
 
-- `EMBEDDING_PROVIDER` = `sentence-transformers` (docker default), `mock`, `openai`, `openrouter`
-- `ST_MODEL` (default: `sentence-transformers/all-MiniLM-L6-v2`)
-- `ST_NORMALIZE` (default: `true`)
+- `EMBEDDING_PROVIDER` = `openrouter` (default), `mock`
+- `OPENROUTER_API_KEY` (required for embeddings)
+- `OPENROUTER_EMBED_MODEL` (default: `qwen/qwen3-embedding-8b`)
 - `MAX_EMBED_CHUNKS` (default: `256`)
-- `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`, `OPENAI_EMBED_MODEL`)
-- `OPENROUTER_API_KEY` (+ optional `OPENROUTER_EMBED_MODEL`)
 
 ### Preprocessing (OpenRouter)
 
 - `OPENROUTER_API_KEY` is required when `include_preprocessing=true` (or when `PREPROCESS_ENABLED=true`)
 - `PREPROCESS_ENABLED` (default: `false`)
-- `PREPROCESS_MODEL` (default: `amazon/nova-2-lite-v1:free`)
+- `PREPROCESS_MODEL` (default: `google/gemma-3-27b-it:free`)
 - `PREPROCESS_TIMEOUT_S` (default: `60`)
 - `PREPROCESS_MAX_INPUT_CHARS` (default: `40000`)
 
-Notes:
-
-- The preprocessor requests `reasoning.effort="none"` (when supported) to keep preprocessing fast and avoid returning reasoning traces.
+- The preprocessor requests `reasoning.effort="none"` (when supported) to keep preprocessing fast.
 
 ### Topics
 
-- `GOOGLE_API_KEY` (or `GOOGLE_GENAI_API_KEY`) enables Gemini-backed topic extraction
-- `TOPIC_MODEL` sets the default Gemini model (default: `gemini-2.5-flash-lite`)
-- `TOPIC_DEBUG=true` adds a second warning line with error details (container logs always include stack traces)
+Topics are extracted using a fast deterministic heuristic. No API key is required.
 
-## Troubleshooting
-
-### Topic extraction falls back with `heuristic:error`
-
-Check container logs:
-
-```bash
-cd services/ingestion
-docker compose logs -f ingestion
-```
-
-Common causes:
-
-- Gemini API quota / rate limiting (HTTP 429 RESOURCE_EXHAUSTED)
-- temporary network errors
-- invalid model name
-
-When you hit quota, the service intentionally falls back to a deterministic heuristic extractor and returns a warning.
+- `TOPIC_MAX_TOPICS` (default: `10`) – maximum topics per chunk

@@ -7,8 +7,6 @@ from .models import (
     ChunkRequest,
     ChunkResponse,
     ChunkOut,
-    TopicSearchRequest,
-    TopicSearchResponse,
     SemanticSearchRequest,
     SemanticSearchResponse,
 )
@@ -17,7 +15,7 @@ from .chunking import chunk_markdown
 from .embeddings import MissingEmbeddingAPIKeyError, get_embedder
 from .preprocess import MissingPreprocessAPIKeyError, get_preprocessor
 from .topic_extraction import extract_topics
-from .ranking import matches_query, score_topic_match, cosine_similarity
+from .ranking import cosine_similarity
 
 
 settings = get_settings()
@@ -95,35 +93,12 @@ def chunk(req: ChunkRequest):
         max_topics = req.max_topics if req.max_topics is not None else int(os.getenv("TOPIC_MAX_TOPICS", "10"))
         model = req.topic_model
 
-        error_details: list[str] = []
-
         for c in chunks_raw:
-            r = extract_topics(c["text"], model=model, max_topics=max_topics)
+            r = extract_topics(c["text"], max_topics=max_topics)
             c["topics"] = r.topics
             c["topic_source"] = r.source
-            if debug_topics and getattr(r, "error", None):
-                error_details.append(str(r.error))
 
-        # Provide a user-visible indication when we fall back.
-        sources = {str(c.get("topic_source") or "") for c in chunks_raw}
-        if any(s.startswith("heuristic:forced") for s in sources):
-            warnings.append("Topic extraction used the deterministic heuristic extractor (forced by request).")
-        elif any(s.startswith("heuristic:no_key") for s in sources):
-            warnings.append("Topic extraction fell back to a heuristic extractor because GOOGLE_API_KEY is not set.")
-        elif any(s.startswith("heuristic:no_dependency") for s in sources):
-            warnings.append("Topic extraction fell back to a heuristic extractor because the Gemini client dependency is not installed.")
-        elif any(s.startswith("heuristic:") for s in sources):
-            warnings.append("Topic extraction fell back to a heuristic extractor due to a Gemini error.")
-            if debug_topics and error_details:
-                unique = []
-                seen = set()
-                for d in error_details:
-                    if d not in seen:
-                        unique.append(d)
-                        seen.add(d)
-                    if len(unique) >= 2:
-                        break
-                warnings.append("Gemini error details: " + " | ".join(unique))
+        # No fallback warnings needed - we always use heuristic now
 
     if req.include_embeddings:
         if len(chunks_raw) > settings.max_embed_chunks:
@@ -155,42 +130,6 @@ def chunk(req: ChunkRequest):
     chunks = [ChunkOut(**c) for c in chunks_raw]
 
     return ChunkResponse(chunk_count=len(chunks), chunks=chunks, warnings=warnings or None)
-
-
-@app.post("/search/topics", response_model=TopicSearchResponse)
-def search_topics(req: TopicSearchRequest):
-    if not _LAST_CHUNKS:
-        raise HTTPException(
-            status_code=400,
-            detail="No chunks available. Call POST /chunk first (with include_topics=true to extract topics).",
-        )
-
-    query_topics = [t for t in (req.topics or []) if isinstance(t, str) and t.strip()]
-    if not query_topics:
-        raise HTTPException(status_code=400, detail="topics is required")
-
-    filtered: list[dict] = []
-    for c in _LAST_CHUNKS:
-        if matches_query(chunk_topics=c.get("topics"), query_topics=query_topics, match=req.match):
-            score = score_topic_match(
-                chunk_topics=c.get("topics"),
-                query_topics=query_topics,
-                chunk_text=c.get("text"),
-            )
-            c_out = dict(c)
-            c_out["rank"] = score
-            filtered.append(c_out)
-
-    filtered.sort(key=lambda x: (-(x.get("rank") or 0.0), x.get("index") or 0))
-
-    if req.min_rank is not None:
-        filtered = [c for c in filtered if (c.get("rank") or 0.0) >= req.min_rank]
-
-    total = len(filtered)
-    limited = filtered[: req.limit]
-
-    chunks = [ChunkOut(**c) for c in limited]
-    return TopicSearchResponse(total_results=total, chunks=chunks)
 
 
 # Track last embedder settings to reuse for query embedding

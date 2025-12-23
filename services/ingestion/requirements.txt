@@ -4,9 +4,3 @@ pydantic==2.10.3
 python-dotenv==1.0.1
 chonkie==1.4.2
 requests==2.32.3
-huggingface_hub==0.27.1
-sentence-transformers==3.3.1
-
-# Optional: enables LLM-backed topic extraction (Gemini) when GOOGLE_API_KEY is set.
-# If omitted, the service falls back to a deterministic heuristic extractor.
-google-genai==1.28.0

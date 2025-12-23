@@ -162,7 +162,7 @@ def get_preprocessor(*, model: str | None = None) -> OpenRouterPreprocessor:
     base_url = (os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").strip()
     timeout_s = float(os.getenv("PREPROCESS_TIMEOUT_S", "60"))
 
-    model_name = (model or os.getenv("PREPROCESS_MODEL") or "amazon/nova-2-lite-v1:free").strip()
+    model_name = (model or os.getenv("PREPROCESS_MODEL") or "google/gemma-3-27b-it:free").strip()
 
     http_referer = (os.getenv("OPENROUTER_HTTP_REFERER") or "").strip() or None
     x_title = (os.getenv("OPENROUTER_X_TITLE") or "").strip() or None

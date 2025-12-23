@@ -56,21 +56,6 @@ class ChunkResponse(BaseModel):
     warnings: list[str] | None = None
 
 
-class TopicSearchRequest(BaseModel):
-    topics: list[str] = Field(..., description="Topics to search for")
-    match: str = Field(
-        "any",
-        description="Match mode: 'any' (default) returns chunks matching at least one topic; 'all' requires all topics.",
-    )
-    limit: int = Field(25, ge=1, le=200)
-    min_rank: float | None = Field(None, ge=0.0, le=100.0)
-
-
-class TopicSearchResponse(BaseModel):
-    total_results: int
-    chunks: list[ChunkOut]
-
-
 class SemanticSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Natural language query to search for")
     limit: int = Field(25, ge=1, le=200)

@@ -50,41 +50,20 @@ const DEFAULT_URL =
 
 type Preset = "ml" | "architecture" | "prd" | "custom";
 
-type EmbeddingProvider = "sentence-transformers" | "openai" | "openrouter" | "mock";
+type EmbeddingProvider = "openrouter" | "mock";
 
-type TopicModel = "gemini-2.5-flash-lite" | "heuristic";
+type TopicModel = "heuristic";
 
-type PreprocessModel = "amazon/nova-2-lite-v1:free";
-
-const ST_MODELS: Array<{ label: string; value: string }> = [
-  {
-    label: "sentence-transformers/all-MiniLM-L6-v2 (384d)",
-    value: "sentence-transformers/all-MiniLM-L6-v2",
-  },
-  {
-    label: "sentence-transformers/all-mpnet-base-v2 (768d)",
-    value: "sentence-transformers/all-mpnet-base-v2",
-  },
-];
-
-const OPENAI_MODELS: Array<{ label: string; value: string }> = [
-  { label: "text-embedding-3-small", value: "text-embedding-3-small" },
-  { label: "text-embedding-3-large", value: "text-embedding-3-large" },
-];
+type PreprocessModel = "google/gemma-3-27b-it:free";
 
 const OPENROUTER_MODELS: Array<{ label: string; value: string }> = [
-  { label: "openai/text-embedding-3-small", value: "openai/text-embedding-3-small" },
-  { label: "openai/text-embedding-3-large", value: "openai/text-embedding-3-large" },
+  { label: "qwen/qwen3-embedding-8b (4096d)", value: "qwen/qwen3-embedding-8b" },
 ];
 
 function defaultModelFor(provider: EmbeddingProvider): string {
   switch (provider) {
-    case "sentence-transformers":
-      return "sentence-transformers/all-MiniLM-L6-v2";
-    case "openai":
-      return "text-embedding-3-small";
     case "openrouter":
-      return "openai/text-embedding-3-small";
+      return "qwen/qwen3-embedding-8b";
     case "mock":
     default:
       return "__none__";
@@ -114,22 +93,6 @@ function formatEmbeddingAll(values: number[], perLine = 8): string {
   return lines.join("\n");
 }
 
-function normalizeTopic(s: string): string {
-  return s.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function topicMatchesQuery(topic: string, queryTopics: string[]): boolean {
-  const t = normalizeTopic(topic);
-  if (!t) return false;
-  for (const qRaw of queryTopics) {
-    const q = normalizeTopic(qRaw);
-    if (!q) continue;
-    if (t === q) return true;
-    if (t.includes(q) || q.includes(t)) return true;
-  }
-  return false;
-}
-
 export default function ChunkingPreview() {
   const { toast } = useToast();
 
@@ -139,43 +102,26 @@ export default function ChunkingPreview() {
   const [overlapSize, setOverlapSize] = useState<number>(80);
 
   const [includeTopics, setIncludeTopics] = useState<boolean>(true);
-  const [topicModel, setTopicModel] = useState<TopicModel>("gemini-2.5-flash-lite");
+  const [topicModel, setTopicModel] = useState<TopicModel>("heuristic");
   const [maxTopics, setMaxTopics] = useState<number>(8);
 
-  const [includePreprocessing, setIncludePreprocessing] = useState<boolean>(false);
-  const [preprocessModel, setPreprocessModel] = useState<PreprocessModel>("amazon/nova-2-lite-v1:free");
+  const [includePreprocessing, setIncludePreprocessing] = useState<boolean>(true);
+  const [preprocessModel, setPreprocessModel] = useState<PreprocessModel>("google/gemma-3-27b-it:free");
 
   const [includeEmbeddings, setIncludeEmbeddings] = useState<boolean>(true);
-  const [embeddingProvider, setEmbeddingProvider] = useState<EmbeddingProvider>("sentence-transformers");
-  const [embeddingModel, setEmbeddingModel] = useState<string>(defaultModelFor("sentence-transformers"));
+  const [embeddingProvider, setEmbeddingProvider] = useState<EmbeddingProvider>("openrouter");
+  const [embeddingModel, setEmbeddingModel] = useState<string>(defaultModelFor("openrouter"));
   const [embeddingModelIsCustom, setEmbeddingModelIsCustom] = useState<boolean>(false);
 
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<ChunkResponse | null>(null);
   const [openEmbeddings, setOpenEmbeddings] = useState<Record<number, boolean>>({});
 
-  const [topicQuery, setTopicQuery] = useState<string>("");
-  const [topicMatch, setTopicMatch] = useState<"any" | "all">("any");
-  const [topicMinRank, setTopicMinRank] = useState<string>("");
-  const [topicLimit, setTopicLimit] = useState<number>(25);
-  const [isSearchingTopics, setIsSearchingTopics] = useState<boolean>(false);
-  const [topicSearchResult, setTopicSearchResult] = useState<TopicSearchResponse | null>(null);
-
-  // Semantic search state
   const [semanticQuery, setSemanticQuery] = useState<string>("");
   const [semanticMinSimilarity, setSemanticMinSimilarity] = useState<string>("");
   const [semanticLimit, setSemanticLimit] = useState<number>(25);
   const [isSearchingSemantic, setIsSearchingSemantic] = useState<boolean>(false);
   const [semanticSearchResult, setSemanticSearchResult] = useState<SemanticSearchResponse | null>(null);
-
-  const topicQueryTerms = useMemo(
-    () =>
-      topicQuery
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0),
-    [topicQuery]
-  );
 
   const onPresetChange = useCallback((value: string) => {
     const next = value as Preset;
@@ -185,7 +131,6 @@ export default function ChunkingPreview() {
     if (next === "prd") setText(SAMPLE_PRD);
     if (next === "custom") setText("");
     setResult(null);
-    setTopicSearchResult(null);
     setSemanticSearchResult(null);
   }, []);
 
@@ -193,7 +138,6 @@ export default function ChunkingPreview() {
     setIsRunning(true);
     setResult(null);
     setOpenEmbeddings({});
-    setTopicSearchResult(null);
 
     try {
       const url = `${DEFAULT_URL.replace(/\/$/, "")}/chunk`;
@@ -241,14 +185,12 @@ export default function ChunkingPreview() {
         !res.ok &&
         res.status === 401 &&
         includeEmbeddings &&
-        (embeddingProvider === "openai" || embeddingProvider === "openrouter")
+        embeddingProvider === "openrouter"
       ) {
         const body = await res.text();
-        const missingKeyHint = body.toLowerCase().includes("missing openai_api_key")
-          ? "OPENAI_API_KEY"
-          : body.toLowerCase().includes("missing openrouter_api_key")
-            ? "OPENROUTER_API_KEY"
-            : "an API key";
+        const missingKeyHint = body.toLowerCase().includes("missing openrouter_api_key")
+          ? "OPENROUTER_API_KEY"
+          : "an API key";
 
         toast({
           title: "Embeddings skipped",
@@ -316,77 +258,6 @@ export default function ChunkingPreview() {
     topicModel,
     maxTopics,
   ]);
-
-  const runTopicSearch = useCallback(async () => {
-    if (!result) {
-      toast({
-        title: "No chunks yet",
-        description: "Run chunking first so the ingestion service has chunks to search.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const topics = topicQuery
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
-    if (topics.length === 0) {
-      toast({
-        title: "Enter at least one topic",
-        description: "Use a comma-separated list, e.g. 'prd, metrics'.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSearchingTopics(true);
-    setTopicSearchResult(null);
-
-    try {
-      const url = `${DEFAULT_URL.replace(/\/$/, "")}/search/topics`;
-
-      const payload: Record<string, unknown> = {
-        topics,
-        match: topicMatch,
-        limit: topicLimit,
-      };
-
-      const parsedMinRank = topicMinRank.trim().length ? Number(topicMinRank) : null;
-      if (parsedMinRank !== null && Number.isFinite(parsedMinRank)) {
-        payload.min_rank = parsedMinRank;
-      }
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`${res.status} ${res.statusText}: ${body}`);
-      }
-
-      const data = (await res.json()) as TopicSearchResponse;
-      setTopicSearchResult(data);
-
-      toast({
-        title: "Topic search complete",
-        description: `Found ${data.total_results} matches`,
-      });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Unknown error";
-      toast({
-        title: "Topic search failed",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSearchingTopics(false);
-    }
-  }, [result, toast, topicQuery, topicMatch, topicLimit, topicMinRank]);
 
   const runSemanticSearch = useCallback(async () => {
     if (!result) {
@@ -476,17 +347,6 @@ export default function ChunkingPreview() {
     return Array.from(dims).sort((a, b) => a - b);
   }, [result]);
 
-  const rankByChunkIndex = useMemo(() => {
-    const map: Record<number, number> = {};
-    if (!topicSearchResult?.chunks?.length) return map;
-    for (const c of topicSearchResult.chunks) {
-      if (typeof c.index === "number" && typeof c.rank === "number") {
-        map[c.index] = c.rank;
-      }
-    }
-    return map;
-  }, [topicSearchResult]);
-
   return (
     <div className="grid gap-6">
       <Card>
@@ -525,7 +385,7 @@ export default function ChunkingPreview() {
               <div className="grid gap-1">
                 <div className="text-sm font-medium">Include topics</div>
                 <div className="text-xs text-muted-foreground">
-                  Extract topics per chunk (LLM when configured; falls back to heuristic with a warning).
+                  Extract topics per chunk using a deterministic heuristic.
                 </div>
               </div>
               <Switch checked={includeTopics} onCheckedChange={setIncludeTopics} />
@@ -534,25 +394,6 @@ export default function ChunkingPreview() {
             {includeTopics && (
               <div className="grid gap-4 rounded-lg border p-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="topicModel">Topic model</Label>
-                    <Select
-                      value={topicModel}
-                      onValueChange={(v) => {
-                        setTopicModel(v as TopicModel);
-                        setResult(null);
-                        setTopicSearchResult(null);
-                      }}
-                    >
-                      <SelectTrigger id="topicModel">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gemini-2.5-flash-lite">Gemini (gemini-2.5-flash-lite)</SelectItem>
-                        <SelectItem value="heuristic">Heuristic (deterministic)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="grid gap-2">
                     <Label htmlFor="maxTopics">Max topics per chunk</Label>
                     <Input
@@ -564,19 +405,12 @@ export default function ChunkingPreview() {
                       onChange={(e) => {
                         setMaxTopics(Number(e.target.value));
                         setResult(null);
-                        setTopicSearchResult(null);
                       }}
                     />
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {topicModel === "heuristic" ? (
-                    <>Heuristic mode runs locally and does not require an API key.</>
-                  ) : (
-                    <>
-                      To use Gemini extraction, configure the ingestion service with <span className="font-mono">GOOGLE_API_KEY</span>.
-                    </>
-                  )}
+                  Topics are extracted using a fast deterministic heuristic (no API key required).
                 </div>
               </div>
             )}
@@ -601,7 +435,7 @@ export default function ChunkingPreview() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="amazon/nova-2-lite-v1:free">Amazon Nova 2 Lite (free)</SelectItem>
+                        <SelectItem value="google/gemma-3-27b-it:free">Google Gemma 3 27B (free)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -641,8 +475,6 @@ export default function ChunkingPreview() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="sentence-transformers">sentence-transformers (local)</SelectItem>
-                        <SelectItem value="openai">OpenAI</SelectItem>
                         <SelectItem value="openrouter">OpenRouter</SelectItem>
                         <SelectItem value="mock">Mock (dev)</SelectItem>
                       </SelectContent>
@@ -671,18 +503,6 @@ export default function ChunkingPreview() {
                         <SelectValue placeholder="Choose a model" />
                       </SelectTrigger>
                       <SelectContent>
-                        {embeddingProvider === "sentence-transformers" &&
-                          ST_MODELS.map((m) => (
-                            <SelectItem key={m.value} value={m.value}>
-                              {m.label}
-                            </SelectItem>
-                          ))}
-                        {embeddingProvider === "openai" &&
-                          OPENAI_MODELS.map((m) => (
-                            <SelectItem key={m.value} value={m.value}>
-                              {m.label}
-                            </SelectItem>
-                          ))}
                         {embeddingProvider === "openrouter" &&
                           OPENROUTER_MODELS.map((m) => (
                             <SelectItem key={m.value} value={m.value}>
@@ -713,11 +533,9 @@ export default function ChunkingPreview() {
                   </div>
                 )}
 
-                {(embeddingProvider === "openai" || embeddingProvider === "openrouter") && (
+                {embeddingProvider === "openrouter" && (
                   <div className="text-xs text-muted-foreground">
-                    Requires an API key configured in the ingestion service container ({
-                      embeddingProvider === "openai" ? "OPENAI_API_KEY" : "OPENROUTER_API_KEY"
-                    }). If missing, the API returns 401.
+                    Requires <span className="font-mono">OPENROUTER_API_KEY</span> in the ingestion service.
                   </div>
                 )}
               </div>
@@ -794,112 +612,6 @@ export default function ChunkingPreview() {
           </div>
         </CardContent>
       </Card>
-
-      {result && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Topic Search</CardTitle>
-            <CardDescription>
-              Searches the most recent chunking run in the ingestion service (dev-only, in-memory).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="topicQuery">Topics (comma-separated)</Label>
-                <Input
-                  id="topicQuery"
-                  value={topicQuery}
-                  onChange={(e) => setTopicQuery(e.target.value)}
-                  placeholder="prd, metrics"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Match mode</Label>
-                <Select value={topicMatch} onValueChange={(v) => setTopicMatch(v as "any" | "all")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">any</SelectItem>
-                    <SelectItem value="all">all</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="topicMinRank">Min rank (0–100, optional)</Label>
-                <Input
-                  id="topicMinRank"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={topicMinRank}
-                  onChange={(e) => setTopicMinRank(e.target.value)}
-                  placeholder=""
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="topicLimit">Limit</Label>
-                <Input
-                  id="topicLimit"
-                  type="number"
-                  min={1}
-                  max={200}
-                  value={topicLimit}
-                  onChange={(e) => setTopicLimit(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button onClick={runTopicSearch} disabled={isSearchingTopics}>
-                {isSearchingTopics ? "Searching…" : "Search"}
-              </Button>
-              {topicSearchResult && (
-                <div className="text-sm text-muted-foreground">
-                  {topicSearchResult.total_results} results
-                </div>
-              )}
-            </div>
-
-            {topicSearchResult && topicSearchResult.chunks.length > 0 && (
-              <ScrollArea className="h-[240px] pr-4">
-                <div className="grid gap-3">
-                  {topicSearchResult.chunks.map((c) => (
-                    <div key={`search-${c.index}`} className="rounded-lg border bg-card p-3">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <Badge variant="secondary">#{c.index}</Badge>
-                        {typeof c.rank === "number" && (
-                          <Badge variant="outline">rank {c.rank.toFixed(1)}</Badge>
-                        )}
-                        {Array.isArray(c.topics) && c.topics.length > 0 &&
-                          c.topics.map((t) => {
-                            const matched = topicMatchesQuery(t, topicQueryTerms);
-                            return (
-                              <Badge key={`${c.index}-${t}`} variant={matched ? "destructive" : "outline"}>
-                                {t}
-                              </Badge>
-                            );
-                          })}
-                      </div>
-                      <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {c.text.length > 500 ? `${c.text.slice(0, 500)}…` : c.text}
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-
-            {topicSearchResult && topicSearchResult.chunks.length === 0 && (
-              <div className="text-sm text-muted-foreground">No matches found.</div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {result && includeEmbeddings && (
         <Card>
@@ -1001,15 +713,12 @@ export default function ChunkingPreview() {
             <ScrollArea className="h-[520px] pr-4">
               <div className="grid gap-3">
                 {result.chunks.map((c) => {
-                  const derivedRank =
-                    typeof c.rank === "number" ? c.rank : rankByChunkIndex[c.index];
-
                   return (
                     <div key={c.index} className="rounded-lg border bg-card p-4">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <Badge variant="secondary">#{c.index}</Badge>
-                        {typeof derivedRank === "number" && (
-                          <Badge variant="outline">rank {derivedRank.toFixed(1)}</Badge>
+                        {typeof c.rank === "number" && (
+                          <Badge variant="outline">rank {c.rank.toFixed(1)}</Badge>
                         )}
                         {typeof c.token_count === "number" && (
                           <Badge variant="outline">{c.token_count} tokens</Badge>
