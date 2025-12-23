@@ -96,9 +96,10 @@ pnpm dev:web
 ## What’s in the Chunking Lab
 
 - Markdown chunking with section path metadata
-- Optional embeddings (local sentence-transformers or remote OpenAI/OpenRouter)
-- Optional topic extraction (Gemini when configured; deterministic heuristic fallback)
-- Topic search + ranking (dev-only, searches the most recent chunking run in-memory; ranks are computed relative to the search query)
+- Optional LLM preprocessing (OpenRouter Gemma 3 27b)
+- Optional embeddings (OpenRouter qwen3-embedding-8b)
+- Optional topic extraction (deterministic heuristic)
+- Semantic search (dev-only, searches the most recent chunking run using cosine similarity)
 
 ## Deployment (high level)
 
