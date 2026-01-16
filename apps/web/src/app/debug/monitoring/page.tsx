@@ -4,14 +4,32 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { ServiceStatusCard, ServiceStatus } from "@/components/ServiceStatusCard";
+import { SystemMetricsCard } from "@/components/SystemMetricsCard";
 import { Button } from "@/components/ui/button";
 import type { HealthCheckResult } from "@/app/api/health/ingestion/route";
+import type { MetricsResult } from "@/app/api/health/metrics/route";
 
 interface ServiceState {
     status: ServiceStatus;
     version?: string;
     responseTimeMs?: number;
     lastChecked?: Date;
+    error?: string;
+}
+
+interface MetricsState {
+    cpu?: number;
+    memory?: {
+        used_mb: number;
+        total_mb: number;
+        percent: number;
+    };
+    disk?: {
+        used_gb: number;
+        total_gb: number;
+        percent: number;
+    };
+    loading: boolean;
     error?: string;
 }
 
@@ -30,6 +48,9 @@ export default function MonitoringPage() {
     });
     const [ingestionStatus, setIngestionStatus] = useState<ServiceState>({
         status: "checking",
+    });
+    const [metrics, setMetrics] = useState<MetricsState>({
+        loading: true,
     });
 
     // Check ingestion service health
@@ -58,6 +79,38 @@ export default function MonitoringPage() {
         }
     }, []);
 
+    // Check system metrics
+    const checkMetrics = useCallback(async () => {
+        setMetrics((prev) => ({ ...prev, loading: true }));
+
+        try {
+            const response = await fetch("/api/health/metrics", {
+                cache: "no-store",
+            });
+            const data: MetricsResult | { error: string } = await response.json();
+
+            if ("error" in data && !("cpu" in data)) {
+                setMetrics({
+                    loading: false,
+                    error: data.error,
+                });
+            } else {
+                const metricsData = data as MetricsResult;
+                setMetrics({
+                    cpu: metricsData.cpu.percent,
+                    memory: metricsData.memory,
+                    disk: metricsData.disk,
+                    loading: false,
+                });
+            }
+        } catch {
+            setMetrics({
+                loading: false,
+                error: "Failed to fetch metrics",
+            });
+        }
+    }, []);
+
     // Check all services
     const checkAllServices = useCallback(async () => {
         setIsRefreshing(true);
@@ -69,9 +122,9 @@ export default function MonitoringPage() {
             lastChecked: new Date(),
         });
 
-        await checkIngestionHealth();
+        await Promise.all([checkIngestionHealth(), checkMetrics()]);
         setIsRefreshing(false);
-    }, [checkIngestionHealth]);
+    }, [checkIngestionHealth, checkMetrics]);
 
     // Auth check
     useEffect(() => {
@@ -149,6 +202,7 @@ export default function MonitoringPage() {
                     )}
                 </div>
 
+                {/* Service Status Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <ServiceStatusCard
                         name="Web Application"
@@ -166,6 +220,15 @@ export default function MonitoringPage() {
                         responseTimeMs={ingestionStatus.responseTimeMs}
                         lastChecked={ingestionStatus.lastChecked}
                         error={ingestionStatus.error}
+                    />
+
+                    {/* System Metrics Card */}
+                    <SystemMetricsCard
+                        cpu={metrics.cpu}
+                        memory={metrics.memory}
+                        disk={metrics.disk}
+                        loading={metrics.loading}
+                        error={metrics.error}
                     />
                 </div>
 

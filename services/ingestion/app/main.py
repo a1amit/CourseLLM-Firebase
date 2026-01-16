@@ -2,6 +2,7 @@ import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import psutil
 
 from .models import (
     ChunkRequest,
@@ -39,6 +40,43 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"ok": True, "service": "ingestion", "version": app.version}
+
+
+@app.get("/metrics")
+def metrics():
+    """Return system metrics: CPU, memory, and disk usage."""
+    # CPU usage (percent over last interval)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+    
+    # Memory usage
+    memory = psutil.virtual_memory()
+    memory_used_mb = round(memory.used / (1024 * 1024), 1)
+    memory_total_mb = round(memory.total / (1024 * 1024), 1)
+    memory_percent = memory.percent
+    
+    # Disk usage (root partition)
+    disk = psutil.disk_usage("/")
+    disk_used_gb = round(disk.used / (1024 * 1024 * 1024), 1)
+    disk_total_gb = round(disk.total / (1024 * 1024 * 1024), 1)
+    disk_percent = disk.percent
+    
+    return {
+        "cpu": {
+            "percent": cpu_percent,
+        },
+        "memory": {
+            "used_mb": memory_used_mb,
+            "total_mb": memory_total_mb,
+            "percent": memory_percent,
+        },
+        "disk": {
+            "used_gb": disk_used_gb,
+            "total_gb": disk_total_gb,
+            "percent": disk_percent,
+        },
+    }
+
+
 
 
 @app.post("/chunk", response_model=ChunkResponse)
