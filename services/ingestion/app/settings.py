@@ -14,7 +14,7 @@ class Settings(BaseModel):
 def get_settings() -> Settings:
     origins_raw = os.getenv(
         "CORS_ALLOW_ORIGINS",
-        "http://localhost:3000,http://localhost:9002",
+        "*",  # Allow all origins by default for easier dev (Codespaces, etc.)
     )
     origins = [o.strip() for o in origins_raw.split(",") if o.strip()]
 
