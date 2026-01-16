@@ -12,7 +12,11 @@
     "build:web": "pnpm --filter web build",
     "lint": "pnpm run --recursive lint",
     "test": "pnpm run --recursive test",
-    "emulators": "firebase emulators:start"
+    "emulators": "firebase emulators:start",
+    "spec": "openspec list",
+    "spec:list": "openspec list",
+    "spec:specs": "openspec list --specs",
+    "spec:validate": "openspec validate"
   },
   "engines": {
     "node": ">=18.0.0",
