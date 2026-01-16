@@ -112,6 +112,33 @@ pnpm dev:web
 > [!NOTE]
 > **GitHub Codespaces users:** Replace `localhost:9002` with your Codespace URL (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/debug/chunking`)
 
+## GitHub Codespaces & Firebase Emulators
+
+> [!CAUTION]
+> **Firebase Firestore emulator does not work** when using Codespaces through the browser. This is a fundamental limitation—browser-based Codespaces force HTTPS for all port forwarding, but the Firestore emulator uses WebChannel which requires HTTP.
+
+### Workarounds
+
+1. **Use VS Code Desktop** - Connect to your Codespace from the VS Code Desktop app instead of the browser. This allows proper `localhost` port forwarding.
+
+2. **Use `gh cs ports forward`** - On your **local machine** terminal:
+   ```bash
+   gh cs ports forward 8080:8080 9099:9099 -c <your-codespace-name>
+   ```
+   Then access the app via your local browser at `localhost:9002`.
+
+3. **Disable emulators in Codespaces** - Use production Firebase instead:
+   ```bash
+   # In apps/web/.env.local
+   NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false
+   ```
+
+4. **Develop locally** - Run emulators on your local machine for full emulator support.
+
+**Recommendation:** For quick testing in Codespaces, use option 3 (production Firebase). For development requiring emulators, work locally or use VS Code Desktop with your Codespace.
+
+For more context, see [GitHub Community Discussion #42879](https://github.com/orgs/community/discussions/42879).
+
 ## What’s in the Chunking Lab
 
 - Markdown chunking with section path metadata
