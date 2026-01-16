@@ -92,7 +92,7 @@ Terminal 3 (Web):
 > **GitHub Codespaces users:** You must add your Codespace domain to Firebase's authorized domains list for authentication to work.
 > 1. Go to **Firebase Console** → **Authentication** → **Settings** → **Authorized domains**
 > 2. Add your Codespace domain (e.g., `your-codespace-name-9002.app.github.dev`)
-> 3. Find your domain by navigating to `/login` in your Codespace browser (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/login`)
+> 3. Find your domain by navigating to `/login` in your Codespace browser (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/login` for example)
 
 ```bash
 pnpm dev:web
@@ -104,6 +104,9 @@ pnpm dev:web
 - Web app: http://localhost:9002
 - Ingestion API: http://localhost:8000 (Swagger: http://localhost:8000/docs)
 - Chunking Lab: http://localhost:9002/debug/chunking (requires login)
+
+> [!NOTE]
+> **GitHub Codespaces users:** Replace `localhost:9002` with your Codespace URL (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/debug/chunking`)
 
 ## What’s in the Chunking Lab
 

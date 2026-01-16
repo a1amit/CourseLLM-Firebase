@@ -5,6 +5,9 @@ Next.js App Router frontend for CourseLLM.
 - Dev server: http://localhost:9002
 - Chunking Lab: http://localhost:9002/debug/chunking (requires login)
 
+> [!NOTE]
+> **GitHub Codespaces users:** Replace `localhost:9002` with your Codespace URL (e.g., `https://your-codespace-name-9002.app.github.dev`)
+
 ## Chunking Lab
 
 The Chunking Lab is a developer UI for iterating on ingestion behavior:
@@ -36,11 +39,30 @@ cp .env.example .env.local
 Key settings:
 
 - Firebase web config: `NEXT_PUBLIC_FIREBASE_*` (required)
-- Ingestion API base URL:
-  - `NEXT_PUBLIC_INGESTION_URL` (preferred)
-  - `NEXT_PUBLIC_API_URL` (legacy fallback)
+- Ingestion API base URL: `NEXT_PUBLIC_INGESTION_URL`
 
-Important: anything prefixed with `NEXT_PUBLIC_` is exposed to the browser. Do not put server secrets here.
+> [!IMPORTANT]
+> Anything prefixed with `NEXT_PUBLIC_` is exposed to the browser. Do not put server secrets here.
+
+## GitHub Codespaces
+
+When running in GitHub Codespaces, you need to configure two things:
+
+### 1. Firebase Auth Domain
+
+Add your Codespace domain to Firebase's authorized domains list:
+
+1. Go to **Firebase Console** → **Authentication** → **Settings** → **Authorized domains**
+2. Add your Codespace domain (e.g., `your-codespace-name-9002.app.github.dev`)
+3. Find your domain by navigating to `/login` in your browser
+
+### 2. Ingestion Service URL
+
+Update `NEXT_PUBLIC_INGESTION_URL` in your `.env.local` to use the forwarded port URL:
+
+```bash
+NEXT_PUBLIC_INGESTION_URL=https://your-codespace-name-8000.app.github.dev
+```
 
 ## Run
 
