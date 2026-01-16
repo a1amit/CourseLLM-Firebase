@@ -150,18 +150,19 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 test('firebase.json emulator ports should match EMULATOR_CONFIG', () => {
-  const firebaseConfigPath = join(process.cwd(), 'firebase.json');
+  // firebase.json is at the project root, not in apps/web
+  const firebaseConfigPath = join(process.cwd(), '..', '..', 'firebase.json');
   const firebaseConfig = JSON.parse(readFileSync(firebaseConfigPath, 'utf-8'));
-  
+
   // Verify Auth emulator port
   expect(firebaseConfig.emulators.auth.port).toBe(EXPECTED_EMULATOR_CONFIG.auth.port);
-  
+
   // Verify Firestore emulator port
   expect(firebaseConfig.emulators.firestore.port).toBe(EXPECTED_EMULATOR_CONFIG.firestore.port);
-  
+
   // Verify Storage emulator port
   expect(firebaseConfig.emulators.storage.port).toBe(EXPECTED_EMULATOR_CONFIG.storage.port);
-  
+
   // Verify UI port
   expect(firebaseConfig.emulators.ui.port).toBe(EXPECTED_EMULATOR_CONFIG.ui.port);
 });
@@ -185,12 +186,12 @@ test('Emulator env schema should accept valid values', () => {
     FIRESTORE_EMULATOR_HOST: z.string().optional(),
     FIREBASE_STORAGE_EMULATOR_HOST: z.string().optional(),
   });
-  
+
   const result = emulatorEnvSchema.safeParse({
     NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "true",
     FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
   });
-  
+
   expect(result.success).toBe(true);
 });
 
@@ -198,7 +199,7 @@ test('Emulator env schema should use default false when not set', () => {
   const emulatorEnvSchema = z.object({
     NEXT_PUBLIC_USE_FIREBASE_EMULATORS: z.enum(["true", "false"]).optional().default("false"),
   });
-  
+
   const result = emulatorEnvSchema.parse({});
   expect(result.NEXT_PUBLIC_USE_FIREBASE_EMULATORS).toBe("false");
 });
@@ -207,11 +208,11 @@ test('Emulator env schema should reject invalid boolean values', () => {
   const emulatorEnvSchema = z.object({
     NEXT_PUBLIC_USE_FIREBASE_EMULATORS: z.enum(["true", "false"]).optional(),
   });
-  
+
   const result = emulatorEnvSchema.safeParse({
     NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "yes", // Invalid - should be "true" or "false"
   });
-  
+
   expect(result.success).toBe(false);
 });
 
