@@ -66,6 +66,7 @@ pnpm install
 Notes:
 - The web app reads the ingestion base URL from `NEXT_PUBLIC_INGESTION_URL` (preferred) or `NEXT_PUBLIC_API_URL` (legacy).
 - Do not put server secrets behind `NEXT_PUBLIC_*`.
+- **Ingestion service**: Use the `.env` file (not shell exports). Docker Compose reads directly from the file; shell exports are not reliably passed to containers.
 
 ### 3) Run services
 

@@ -51,6 +51,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+## GitHub Codespaces
+
+When running in GitHub Codespaces:
+
+1. **Use `.env` files** (not shell exports) — Docker Compose reads directly from the `.env` file. Shell exports are not reliably passed to containers.
+2. **Set port 8000 to Public** in the Ports panel for CORS to work correctly.
+
 ## API
 
 - `GET /health`
@@ -129,7 +136,7 @@ Create it from the template:
 
 ### Core
 
-- `CORS_ALLOW_ORIGINS` (default: `http://localhost:3000,http://localhost:9002`)
+- `CORS_ALLOW_ORIGINS` (default: `*` to allow all origins)
 - `CHUNK_SIZE` (default: `450`)
 - `OVERLAP_SIZE` (default: `80`)
 - `TOKENIZER` (default: `word`)
