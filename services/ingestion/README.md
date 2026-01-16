@@ -60,7 +60,8 @@ When running in GitHub Codespaces:
 
 ## API
 
-- `GET /health`
+- `GET /health` — Service status and version
+- `GET /metrics` — System metrics (CPU, memory, disk usage)
 - `POST /chunk`
 - `POST /search/semantic` (development only; semantic similarity search using embeddings)
 
@@ -175,5 +176,7 @@ Topics are extracted using a fast deterministic heuristic. No API key is require
 | `python-dotenv` | 1.0.1 | Environment variable loading |
 | `chonkie` | 1.4.2 | Markdown-aware chunking library |
 | `requests` | 2.32.3 | HTTP client for OpenRouter API calls |
+| `psutil` | 5.9.8 | System metrics (CPU, memory, disk) |
 
 **Python version:** 3.11+
+

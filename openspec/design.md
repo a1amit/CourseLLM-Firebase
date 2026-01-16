@@ -90,4 +90,26 @@ The service lives in `services/ingestion` but shares configuration patterns with
 ## Dependencies
 - **Core**: `fastapi`, `uvicorn`, `pydantic`
 - **AI/ML**: `pydantic-ai` (implied), `openai`, `google-cloud-aiplatform` (for Vertex)
+- **Monitoring**: `psutil` (system metrics)
 - **Utilities**: `python-dotenv`
+
+## Observability
+
+### Health & Metrics Endpoints
+
+The service exposes two observability endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /health` | Returns service status, name, and version |
+| `GET /metrics` | Returns CPU, memory, and disk usage |
+
+### Service Monitor Dashboard
+
+A web-based monitoring dashboard is available at `/debug/monitoring` (requires authentication). It provides:
+
+- Real-time service health status
+- System resource usage (CPU, memory, disk)
+- Auto-refresh every 10 seconds
+- Response time tracking
+

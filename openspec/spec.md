@@ -25,6 +25,11 @@ The Ingestion Service is a standalone microservice within the CourseLLM platform
 **Description**: Provides a search over the possible chunks in memory.
 - **Requirement**: Allow developers to execute "search by meaning" against the most recently processed document batch to tune parameters.
 
+### 5. Observability
+**Description**: Exposes service health and system resource metrics for monitoring.
+- **Requirement**: Provide a `/health` endpoint returning service status and version.
+- **Requirement**: Provide a `/metrics` endpoint returning CPU, memory, and disk usage for container monitoring.
+
 ## Integration Ecosystem
 
 ### Relationship to CourseLLM Components

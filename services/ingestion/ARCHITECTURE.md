@@ -1026,15 +1026,44 @@ flowchart TB
 
 ### Monitoring Dashboard Integration
 
-The Monitoring Dashboard can track:
+The **Service Monitor** dashboard at `/debug/monitoring` provides real-time visibility into service health and system resources.
+
+#### Available Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | `GET` | Service health status (ok, service name, version) |
+| `/metrics` | `GET` | System metrics (CPU, memory, disk usage) |
+
+#### Metrics Response Format
+
+```json
+{
+  "cpu": { "percent": 15.2 },
+  "memory": { "used_mb": 512.3, "total_mb": 2048.0, "percent": 25.0 },
+  "disk": { "used_gb": 10.5, "total_gb": 50.0, "percent": 21.0 }
+}
+```
+
+#### Dashboard Features
+
+| Feature | Description |
+|---------|-------------|
+| Service Health | Real-time health status with visual indicators |
+| System Metrics | CPU, memory, and disk usage with progress bars |
+| Auto-refresh | Automatic polling every 10 seconds |
+| Response Time | Latency tracking for each health check |
+
+#### Monitored Metrics
 
 | Metric | Source | Purpose |
 |--------|--------|---------|
 | Service Health | `/health` | Uptime monitoring |
+| CPU Usage | `/metrics` | Container resource tracking |
+| Memory Usage | `/metrics` | Memory pressure detection |
+| Disk Usage | `/metrics` | Storage monitoring |
 | Request Latency | Application logs | Performance tracking |
-| Chunk Counts | Response data | Usage analytics |
 | API Errors | Error responses | Issue detection |
-| OpenRouter Usage | External metrics | Cost tracking |
 
 ### Debugging Tools
 

@@ -108,6 +108,7 @@ pnpm dev:web
 - Web app: http://localhost:9002
 - Ingestion API: http://localhost:8000 (Swagger: http://localhost:8000/docs)
 - Chunking Lab: http://localhost:9002/debug/chunking (requires login)
+- Service Monitor: http://localhost:9002/debug/monitoring (requires login)
 
 > [!NOTE]
 > **GitHub Codespaces users:** Replace `localhost:9002` with your Codespace URL (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/debug/chunking`)
