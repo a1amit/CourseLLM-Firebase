@@ -33,8 +33,8 @@ The **Ingestion Service** is a FastAPI-based microservice responsible for transf
 | **Markdown Chunking** | Splits markdown documents into semantically coherent chunks optimized for vector search |
 | **LLM Preprocessing** | Optional normalization of messy input into clean, structured Markdown |
 | **Embedding Generation** | Computes vector embeddings for each chunk via external embedding APIs |
-| **Topic Extraction** | Extracts keywords and topics from chunks using deterministic heuristics |
-| **Semantic Search** | Development-only similarity search over recently processed chunks |
+| **Topic Extraction** | Extracts keywords and topics from chunks using |
+| **Semantic Search** | similarity search over recently processed chunks |
 
 ### Key Technologies
 
@@ -66,7 +66,7 @@ flowchart TB
         subgraph Services["Backend Services"]
             UploadService["📤 Upload Service<br/>Course Material Upload"]
             ConversionService["🔄 Conversion Service<br/>PDF/DOCX → Markdown"]
-            IngestionService["⚙️ Ingestion Service<br/>(This Service)"]
+            IngestionService["⚙️ Chunking Service<br/>(This Service)"]
             SearchService["🔍 Search Service<br/>RAG Query Handler"]
             AIService["🤖 AI Service<br/>LLM Orchestration"]
         end
@@ -104,7 +104,7 @@ flowchart TB
 
 | Upstream Services | This Service | Downstream Services |
 |-------------------|--------------|---------------------|
-| **Upload Service** - Receives raw course materials (PDF, DOCX, etc.) | **Ingestion Service** - Chunks and embeds Markdown content | **Persistence Layer** - Stores chunks with embeddings |
+| **Upload Service** - Receives raw course materials (PDF, DOCX, etc.) | **Chunking Service** - Chunks and embeds Markdown content | **Persistence Layer** - Stores chunks with embeddings |
 | **Conversion Service** - Converts documents to Markdown format | | **Search Service** - Queries chunks for RAG |
 
 ---
@@ -125,7 +125,7 @@ flowchart TB
         end
         
         subgraph Core["Core Processing Pipeline"]
-            Preprocessor["🔄 LLM Preprocessor<br/>(preprocess.py)"]
+            Preprocessor["🔄 LLM Preprocessor(optional)<br/>(preprocess.py)"]
             SectionSplitter["📑 Section Splitter<br/>(chunking.py)"]
             Chunker["✂️ Recursive Chunker<br/>(Chonkie Pipeline)"]
             TopicExtractor["🏷️ Topic Extractor<br/>(topic_extraction.py)"]
@@ -149,7 +149,7 @@ flowchart TB
     end
     
     ChunkEndpoint --> Preprocessor
-    Preprocessor -->|Optional| OpenRouterLLM
+    Preprocessor --> OpenRouterLLM
     Preprocessor --> SectionSplitter
     SectionSplitter --> Chunker
     Chunker --> TopicExtractor
@@ -481,7 +481,6 @@ Provides similarity scoring for search functionality.
 flowchart LR
     subgraph RankingModule["Ranking Module"]
         CosineSim["cosine_similarity(a, b)<br/>Vector similarity"]
-        TopicScore["score_topic_match(...)<br/>Topic relevance"]
         TopicMatch["matches_query(...)<br/>Boolean match"]
     end
 ```
