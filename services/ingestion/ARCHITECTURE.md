@@ -134,7 +134,6 @@ flowchart TB
         
         subgraph Ranking["Ranking & Search"]
             CosineSim["📊 Cosine Similarity<br/>(ranking.py)"]
-            TopicMatcher["🎯 Topic Matcher<br/>(ranking.py)"]
         end
         
         subgraph State["State Management"]
@@ -481,7 +480,6 @@ Provides similarity scoring for search functionality.
 flowchart LR
     subgraph RankingModule["Ranking Module"]
         CosineSim["cosine_similarity(a, b)<br/>Vector similarity"]
-        TopicMatch["matches_query(...)<br/>Boolean match"]
     end
 ```
 
@@ -490,8 +488,6 @@ flowchart LR
 | Function | Purpose | Range |
 |----------|---------|-------|
 | `cosine_similarity(a, b)` | Compute vector similarity | [-1, 1] |
-| `score_topic_match(...)` | Deterministic topic relevance | [0, 100] |
-| `matches_query(...)` | Boolean topic matching | `True`/`False` |
 
 #### Cosine Similarity Implementation
 
@@ -503,15 +499,6 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     norm_b = math.sqrt(sum(y * y for y in b))
     return dot / (norm_a * norm_b)
 ```
-
-#### Topic Scoring Algorithm
-
-The `score_topic_match` function uses a multi-factor scoring approach:
-
-1. **Exact Match Coverage** (70% weight)
-2. **Partial Match Bonus** (up to 10 points)
-3. **Focus Bonus** (for chunks with fewer, more relevant topics)
-4. **Text Evidence Bonus** (occurrences of query terms in chunk text)
 
 ---
 
@@ -1105,8 +1092,6 @@ flowchart TB
 | Symbol | Type | Description |
 |--------|------|-------------|
 | `cosine_similarity()` | Function | Vector similarity |
-| `score_topic_match()` | Function | Topic relevance scoring |
-| `matches_query()` | Function | Boolean topic matching |
 
 ---
 
