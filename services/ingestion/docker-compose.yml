@@ -5,7 +5,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - CORS_ALLOW_ORIGINS=http://localhost:3000,http://localhost:9002
+      - CORS_ALLOW_ORIGINS=*
       - CHUNK_SIZE=450
       - OVERLAP_SIZE=80
       - TOKENIZER=word
