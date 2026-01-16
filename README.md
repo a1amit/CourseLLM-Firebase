@@ -71,6 +71,9 @@ Notes:
 
 Terminal 1 (Firebase emulators):
 
+> [!IMPORTANT]
+> **Skip this step if running on GitHub Codespaces.** The emulators are not needed when connecting to the production Firebase project.
+
 ```bash
 pnpm emulators
 # or: firebase emulators:start
@@ -84,6 +87,12 @@ pnpm docker:ingestion
 ```
 
 Terminal 3 (Web):
+
+> [!IMPORTANT]
+> **GitHub Codespaces users:** You must add your Codespace domain to Firebase's authorized domains list for authentication to work.
+> 1. Go to **Firebase Console** → **Authentication** → **Settings** → **Authorized domains**
+> 2. Add your Codespace domain (e.g., `your-codespace-name-9002.app.github.dev`)
+> 3. Find your domain by navigating to `/login` in your Codespace browser (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/login`)
 
 ```bash
 pnpm dev:web
