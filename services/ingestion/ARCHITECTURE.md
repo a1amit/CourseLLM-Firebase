@@ -983,63 +983,6 @@ flowchart TB
     EnvFile --> Container
     Container <-->|HTTPS| OpenRouter
 ```
-
-#### docker-compose.yml
-
-```yaml
-version: '3.8'
-services:
-  ingestion:
-    build: .
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    environment:
-      - PYTHONUNBUFFERED=1
-```
-
-#### Dockerfile
-
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY app/ ./app/
-EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-### Local Development
-
-```bash
-# With Docker (recommended)
-cd services/ingestion
-cp .env.example .env
-# Edit .env with your OPENROUTER_API_KEY
-docker compose up --build
-
-# Without Docker
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-### Production Considerations
-
-| Aspect | Recommendation |
-|--------|----------------|
-| **Scaling** | Stateless design allows horizontal scaling |
-| **State** | `_LAST_CHUNKS` is dev-only; production should use external storage |
-| **API Keys** | Use secrets management (not env files) |
-| **Timeouts** | Adjust based on expected document sizes |
-| **Rate Limits** | Implement rate limiting for OpenRouter API calls |
-
----
-
 ## Monitoring & Debugging
 
 ### Health Monitoring
@@ -1048,16 +991,12 @@ The `/health` endpoint provides basic liveness checking:
 
 ```mermaid
 flowchart LR
-    LoadBalancer["Load Balancer"]
-    Kubernetes["Kubernetes"]
     Monitoring["Monitoring Service"]
     
     subgraph IngestionService
         Health["GET /health"]
     end
     
-    LoadBalancer -->|Health Probe| Health
-    Kubernetes -->|Liveness Probe| Health
     Monitoring -->|Periodic Check| Health
 ```
 
