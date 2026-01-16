@@ -81,6 +81,9 @@ pnpm emulators
 
 Terminal 2 (Ingestion):
 
+> [!IMPORTANT]
+> **GitHub Codespaces users:** After starting the ingestion service, you must set **port 8000 to Public** in the Ports panel for CORS to work correctly.
+
 ```bash
 pnpm docker:ingestion
 # or: cd services/ingestion && docker compose up --build

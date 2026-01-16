@@ -64,6 +64,10 @@ Update `NEXT_PUBLIC_INGESTION_URL` in your `.env.local` to use the forwarded por
 NEXT_PUBLIC_INGESTION_URL=https://your-codespace-name-8000.app.github.dev
 ```
 
+### 3. Port Visibility
+
+Set **port 8000 to Public** in the Codespaces Ports panel. This is required for CORS to work correctly between the web app and ingestion service.
+
 ## Run
 
 ```bash
