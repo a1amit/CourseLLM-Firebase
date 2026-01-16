@@ -160,3 +160,19 @@ cd apps/web
 
 > [!NOTE]
 > **`pnpm test:e2e` requires Firebase emulators.** The e2e tests validate emulator connectivity and should only be run locally with `pnpm emulators` running. They will fail in GitHub Codespaces.
+
+## Dependencies
+
+For detailed dependency lists with versions, see:
+
+- **Web app:** [apps/web/README.md](apps/web/README.md#dependencies) — Next.js ^15.5.7, React ^18.3.1, Firebase ^11.9.1, Genkit ^1.20.0, and more
+- **Ingestion service:** [services/ingestion/README.md](services/ingestion/README.md#dependencies) — FastAPI 0.115.6, Pydantic 2.10.3, Chonkie 1.4.2
+
+### Runtime Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Node.js | ≥18.0.0 |
+| pnpm | ≥8.0.0 |
+| Python (ingestion) | ≥3.11 |
+| Docker | Recommended for ingestion |
