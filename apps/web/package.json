@@ -5,12 +5,8 @@
   "scripts": {
     "postinstall": "patch-package",
     "dev": "next dev -p 9002",
-    "dev:turbo": "next dev --turbopack -p 9002",
     "test:e2e": "playwright test",
-    "test:emulators": "playwright test tests/emulator-config.spec.ts",
     "test:env": "npx tsx tests/env.unit.test.ts",
-    "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
-    "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit"

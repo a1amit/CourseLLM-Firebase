@@ -134,12 +134,15 @@ Run from the repo root:
 | Command | Description |
 |---------|-------------|
 | `pnpm dev:web` | Start Next.js web app (port 9002) |
-| `pnpm dev:ingestion` | Run ingestion API locally (requires Python) |
+| `pnpm dev:ingestion` | Run ingestion API locally (requires Python) — **local only** |
 | `pnpm docker:ingestion` | Run ingestion API in Docker |
 | `pnpm docker:ingestion:down` | Stop ingestion Docker container |
 | `pnpm build` | Build all packages |
 | `pnpm build:web` | Build only the web app |
-| `pnpm emulators` | Start Firebase emulators |
+| `pnpm emulators` | Start Firebase emulators — **local only** |
+
+> [!NOTE]
+> **GitHub Codespaces users:** Commands marked with "local only" should not be run in Codespaces. Use `pnpm docker:ingestion` for the ingestion service and skip the emulators (connect to production Firebase instead).
 
 ### Web App Scripts
 
@@ -152,6 +155,5 @@ cd apps/web
 | Command | Description |
 |---------|-------------|
 | `pnpm test:e2e` | Run Playwright end-to-end tests |
-| `pnpm test:emulators` | Run emulator configuration tests |
 | `pnpm test:env` | Run environment variable unit tests |
 | `pnpm typecheck` | Run TypeScript type checking |

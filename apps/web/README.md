@@ -76,7 +76,6 @@ pnpm dev
 
 ## Useful scripts
 
-- `pnpm typecheck`
-- `pnpm lint`
-- `pnpm test:e2e`
-- `pnpm test:env`
+- `pnpm typecheck` — TypeScript type checking
+- `pnpm test:e2e` — Playwright end-to-end tests
+- `pnpm test:env` — Environment variable unit tests
