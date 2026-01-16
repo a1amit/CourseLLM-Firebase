@@ -60,6 +60,8 @@ pnpm install
 - Web app env: copy [apps/web/.env.example](apps/web/.env.example) → `apps/web/.env.local`
 - Ingestion env (server-only secrets): copy [services/ingestion/.env.example](services/ingestion/.env.example) → `services/ingestion/.env`
 
+<span style="color:red">**Important: each env file must have the exact name shown (`apps/web/.env.local` is `.env.local` and `services/ingestion/.env` is `.env`).**</span>
+
 Notes:
 - The web app reads the ingestion base URL from `NEXT_PUBLIC_INGESTION_URL` (preferred) or `NEXT_PUBLIC_API_URL` (legacy).
 - Do not put server secrets behind `NEXT_PUBLIC_*`.
