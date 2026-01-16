@@ -139,9 +139,22 @@ Run from the repo root:
 | `pnpm docker:ingestion:down` | Stop ingestion Docker container |
 | `pnpm build` | Build all packages |
 | `pnpm build:web` | Build only the web app |
-| `pnpm lint` | Lint all packages |
-| `pnpm test` | Run tests in all packages |
 | `pnpm emulators` | Start Firebase emulators |
 | `pnpm spec` | List OpenSpec items |
 | `pnpm spec:specs` | List OpenSpec specs only |
 | `pnpm spec:validate` | Validate OpenSpec files |
+
+### Web App Scripts
+
+Run from `apps/web`:
+
+```bash
+cd apps/web
+```
+
+| Command | Description |
+|---------|-------------|
+| `pnpm test:e2e` | Run Playwright end-to-end tests |
+| `pnpm test:emulators` | Run emulator configuration tests |
+| `pnpm test:env` | Run environment variable unit tests |
+| `pnpm typecheck` | Run TypeScript type checking |
