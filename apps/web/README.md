@@ -77,5 +77,59 @@ pnpm dev
 ## Useful scripts
 
 - `pnpm typecheck` — TypeScript type checking
-- `pnpm test:e2e` — Playwright end-to-end tests
+- `pnpm test:e2e` — Playwright end-to-end tests (requires emulators)
 - `pnpm test:env` — Environment variable unit tests
+
+## Dependencies
+
+### Core
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| `next` | ^15.5.7 | React framework with App Router |
+| `react` | ^18.3.1 | UI library |
+| `react-dom` | ^18.3.1 | React DOM renderer |
+| `typescript` | ^5 | TypeScript compiler |
+
+### Firebase
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| `firebase` | ^11.9.1 | Firebase JS SDK |
+| `firebase-admin` | ^11.11.0 | Firebase Admin SDK (server-side) |
+
+### AI / Genkit
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| `genkit` | ^1.20.0 | Google AI toolkit |
+| `@genkit-ai/google-genai` | ^1.20.0 | Google GenAI plugin for Genkit |
+| `@genkit-ai/next` | ^1.20.0 | Next.js integration for Genkit |
+
+### UI Components
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| `@radix-ui/*` | Various | Headless UI primitives |
+| `lucide-react` | ^0.475.0 | Icon library |
+| `tailwindcss` | ^3.4.1 | CSS framework |
+| `class-variance-authority` | ^0.7.1 | Variant styling utilities |
+| `tailwind-merge` | ^3.0.1 | Tailwind class merging |
+| `recharts` | ^2.15.1 | Charting library |
+
+### Forms & Validation
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| `react-hook-form` | ^7.54.2 | Form state management |
+| `@hookform/resolvers` | ^4.1.3 | Form validation resolvers |
+| `zod` | ^3.24.2 | Schema validation |
+
+### Dev Dependencies
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| `@playwright/test` | ^1.40.0 | E2E testing framework |
+| `tsx` | ^4.19.2 | TypeScript execution |
+| `eslint` | ^8.57.1 | Linting |
+| `genkit-cli` | ^1.20.0 | Genkit CLI tools |

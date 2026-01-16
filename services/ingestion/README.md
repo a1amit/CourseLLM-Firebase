@@ -75,7 +75,7 @@ Request fields of interest:
 - `include_section_path`
 - `include_preprocessing` (+ optional `preprocess_model`)
 - `include_embeddings` (+ `embedding_provider`, `embedding_model`)
-- `include_topics` (+ `topic_model`, `max_topics`)
+- `include_topics` (+ `max_topics`)
 
 Example (topics + embeddings):
 
@@ -164,3 +164,16 @@ Create it from the template:
 Topics are extracted using a fast deterministic heuristic. No API key is required.
 
 - `TOPIC_MAX_TOPICS` (default: `10`) – maximum topics per chunk
+
+## Dependencies
+
+| Package | Version | Description |
+|---------|---------|-------------|
+| `fastapi` | 0.115.6 | Web framework |
+| `uvicorn[standard]` | 0.32.1 | ASGI server |
+| `pydantic` | 2.10.3 | Data validation |
+| `python-dotenv` | 1.0.1 | Environment variable loading |
+| `chonkie` | 1.4.2 | Markdown-aware chunking library |
+| `requests` | 2.32.3 | HTTP client for OpenRouter API calls |
+
+**Python version:** 3.11+
