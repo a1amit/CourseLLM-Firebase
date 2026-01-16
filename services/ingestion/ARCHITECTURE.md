@@ -420,9 +420,8 @@ flowchart TB
         Interface["Embedder Protocol<br/>embed_texts(texts) → vectors"]
         
         subgraph Providers["Providers"]
-            Mock["MockEmbedder<br/>(deterministic, 64-dim)"]
-            OpenAI["OpenAICompatibleEmbedder<br/>(OpenAI/OpenRouter)"]
-            Vertex["VertexEmbedder<br/>(placeholder)"]
+            Mock["MockEmbedder<br/>(deterministic)"]
+            OpenAI["OpenAICompatibleEmbedder<br/>(OpenRouter)"]
         end
         
         Factory["get_embedder(provider, model)"]
@@ -449,26 +448,8 @@ flowchart TB
 | Provider | Class | API Endpoint | Auth |
 |----------|-------|--------------|------|
 | `mock` | `MockEmbedder` | None (local) | None |
-| `openai` | `OpenAICompatibleEmbedder` | `https://api.openai.com/v1/embeddings` | `OPENAI_API_KEY` |
 | `openrouter` | `OpenAICompatibleEmbedder` | `https://openrouter.ai/api/v1/embeddings` | `OPENROUTER_API_KEY` |
-| `vertex` | Not implemented | - | GCP Auth |
 
-#### Mock Embedder (Development)
-
-The mock embedder generates deterministic, non-semantic embeddings using BLAKE2b hashing:
-
-```python
-@dataclass(frozen=True)
-class MockEmbedder:
-    dim: int = 64  # Configurable via EMBEDDING_DIM
-
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        # Hash-based deterministic vectors for testing
-        h = hashlib.blake2b(text.encode(), digest_size=32).digest()
-        # Map bytes to [-1, 1] range
-```
-
----
 
 ### 5. Ranking System (`ranking.py`)
 
