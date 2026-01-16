@@ -470,18 +470,6 @@ flowchart LR
 |----------|---------|-------|
 | `cosine_similarity(a, b)` | Compute vector similarity | [-1, 1] |
 
-#### Cosine Similarity Implementation
-
-```python
-# From ranking.py
-def cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    return dot / (norm_a * norm_b)
-```
-
----
 
 ## API Reference
 
@@ -498,15 +486,6 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 ### `GET /health`
 
 Health check endpoint for monitoring and load balancer probes.
-
-#### Code Reference
-
-```python
-# main.py, lines 37-39
-@app.get("/health")
-def health():
-    return {"ok": True, "service": "ingestion", "version": app.version}
-```
 
 #### Response
 
@@ -928,39 +907,6 @@ flowchart TB
     SimilaritySearch --> Results
 ```
 
-### Chunk Data Structure Flow
-
-```mermaid
-flowchart LR
-    subgraph Input
-        RawMD["Raw Markdown<br/>string"]
-    end
-    
-    subgraph Chunking
-        Section["MarkdownSection<br/>index, path, text"]
-        RawChunk["Raw Chunk Dict<br/>index, text, token_count,<br/>section_index, section_path"]
-    end
-    
-    subgraph Enrichment
-        WithTopics["+ topics[]<br/>+ topic_source"]
-        WithEmbedding["+ embedding[]"]
-    end
-    
-    subgraph Output
-        ChunkOut["ChunkOut Model<br/>(Pydantic)"]
-        JSON["JSON Response"]
-    end
-    
-    RawMD --> Section
-    Section --> RawChunk
-    RawChunk --> WithTopics
-    WithTopics --> WithEmbedding
-    WithEmbedding --> ChunkOut
-    ChunkOut --> JSON
-```
-
----
-
 ## Module Reference
 
 ### Directory Structure
@@ -1012,131 +958,7 @@ flowchart TB
     embeddings --> requests
 ```
 
-### Key Classes and Functions
 
-#### `main.py`
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| `app` | `FastAPI` | Application instance |
-| `_LAST_CHUNKS` | `list[dict]` | In-memory chunk store (dev) |
-| `health()` | Function | Health check endpoint |
-| `chunk(req)` | Function | Main chunking endpoint |
-| `search_semantic(req)` | Function | Semantic search endpoint |
-
-#### `models.py`
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| `ChunkRequest` | Pydantic Model | POST /chunk request body |
-| `ChunkResponse` | Pydantic Model | POST /chunk response body |
-| `ChunkOut` | Pydantic Model | Individual chunk in response |
-| `SemanticSearchRequest` | Pydantic Model | POST /search/semantic request |
-| `SemanticSearchResponse` | Pydantic Model | POST /search/semantic response |
-
-#### `chunking.py`
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| `MarkdownSection` | Dataclass | Section with heading path |
-| `chunk_markdown()` | Function | Main chunking function |
-| `_iter_markdown_sections()` | Generator | Section iterator |
-
-#### `preprocess.py`
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| `OpenRouterPreprocessor` | Dataclass | Preprocessing client |
-| `get_preprocessor()` | Factory | Create preprocessor instance |
-| `MissingPreprocessAPIKeyError` | Exception | Missing API key error |
-
-#### `embeddings.py`
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| `Embedder` | Protocol | Embedder interface |
-| `MockEmbedder` | Dataclass | Deterministic test embedder |
-| `OpenAICompatibleEmbedder` | Dataclass | OpenAI/OpenRouter embedder |
-| `get_embedder()` | Factory | Create embedder instance |
-| `MissingEmbeddingAPIKeyError` | Exception | Missing API key error |
-
-#### `topic_extraction.py`
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| `TopicExtractionResult` | Dataclass | Extraction result with source |
-| `extract_topics()` | Function | Main extraction function |
-| `heuristic_extract_topics()` | Function | Deterministic extraction |
-
-#### `ranking.py`
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| `cosine_similarity()` | Function | Vector similarity |
-
----
-
-## Configuration
-
-### Environment Variables
-
-All configuration is done through environment variables, typically set in `.env` for local development.
-
-#### Core Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CORS_ALLOW_ORIGINS` | `*` | Comma-separated allowed origins |
-| `MAX_INPUT_CHARS` | `400000` | Maximum input text size |
-| `CHUNK_SIZE` | `450` | Default chunk size in tokens |
-| `OVERLAP_SIZE` | `80` | Default overlap between chunks |
-| `TOKENIZER` | `word` | Tokenizer type for chunking |
-| `MAX_EMBED_CHUNKS` | `256` | Max chunks to embed per request |
-
-#### Embedding Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EMBEDDING_PROVIDER` | `mock` | Provider: `mock`, `openrouter`, `openai` |
-| `EMBEDDING_DIM` | `64` | Mock embedder dimension |
-| `OPENROUTER_API_KEY` | - | **Required** for `openrouter` provider |
-| `OPENROUTER_EMBED_MODEL` | `qwen/qwen3-embedding-8b` | Embedding model |
-| `OPENAI_API_KEY` | - | Required for `openai` provider |
-| `OPENAI_EMBED_MODEL` | - | OpenAI embedding model |
-
-#### Preprocessing Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PREPROCESS_ENABLED` | `false` | Enable preprocessing globally |
-| `PREPROCESS_MODEL` | `google/gemma-3-27b-it:free` | LLM model |
-| `PREPROCESS_TIMEOUT_S` | `60` | Request timeout in seconds |
-| `PREPROCESS_MAX_INPUT_CHARS` | `40000` | Max input for preprocessing |
-| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | API base URL |
-| `OPENROUTER_HTTP_REFERER` | - | Optional analytics header |
-| `OPENROUTER_X_TITLE` | - | Optional app title header |
-
-#### Topic Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TOPIC_MAX_TOPICS` | `10` | Default max topics per chunk |
-
-### Settings Class
-
-Configuration is managed in [`app/settings.py`](app/settings.py):
-
-```python
-class Settings(BaseModel):
-    cors_allow_origins: list[str]
-    max_input_chars: int
-    default_chunk_size: int
-    default_overlap_size: int
-    tokenizer: str
-    max_embed_chunks: int
-```
-
----
 
 ## Deployment
 
@@ -1319,85 +1141,3 @@ logger = logging.getLogger(__name__)
 | `DEBUG` | Detailed processing info |
 
 ---
-
-## Appendix
-
-### A. Request/Response Examples
-
-#### Full Chunking Request
-
-```bash
-curl -X POST http://localhost:8000/chunk \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "# Machine Learning Fundamentals\n\n## Supervised Learning\n\nSupervised learning uses labeled data...\n\n## Unsupervised Learning\n\nUnsupervised learning finds patterns...",
-    "chunk_size": 400,
-    "overlap_size": 50,
-    "include_section_path": true,
-    "include_preprocessing": true,
-    "preprocess_model": "google/gemma-3-27b-it:free",
-    "include_topics": true,
-    "max_topics": 5,
-    "include_embeddings": true,
-    "embedding_provider": "openrouter",
-    "embedding_model": "qwen/qwen3-embedding-8b"
-  }'
-```
-
-#### Full Chunking Response
-
-```json
-{
-  "chunk_count": 2,
-  "chunks": [
-    {
-      "index": 0,
-      "text": "# Machine Learning Fundamentals\n\n## Supervised Learning\n\nSupervised learning uses labeled data...",
-      "token_count": 156,
-      "section_index": 0,
-      "section_path": "Machine Learning Fundamentals > Supervised Learning",
-      "embedding": [0.0234, -0.1567, 0.8901, ...],
-      "topics": ["machine learning", "supervised learning", "labeled data"],
-      "topic_source": "heuristic",
-      "rank": null
-    },
-    {
-      "index": 1,
-      "text": "## Unsupervised Learning\n\nUnsupervised learning finds patterns...",
-      "token_count": 134,
-      "section_index": 1,
-      "section_path": "Machine Learning Fundamentals > Unsupervised Learning",
-      "embedding": [0.1456, -0.2789, 0.5432, ...],
-      "topics": ["unsupervised learning", "patterns", "machine learning"],
-      "topic_source": "heuristic",
-      "rank": null
-    }
-  ],
-  "warnings": null
-}
-```
-
-### B. Error Handling Reference
-
-| Error Type | HTTP Status | Handling |
-|------------|-------------|----------|
-| Empty input | 400 | Return error immediately |
-| Input too large | 413 | Return error with limit info |
-| Missing API key | 401 | Return specific key error |
-| API timeout | 500 | Log and return error |
-| Embedding failure | 500 | Return error with details |
-| Too many chunks | 413 | Return error with limit |
-
-### C. Performance Characteristics
-
-| Operation | Typical Latency | Bottleneck |
-|-----------|-----------------|------------|
-| Health check | < 10ms | None |
-| Chunking only | 50-200ms | Chonkie processing |
-| With preprocessing | 2-10s | OpenRouter LLM call |
-| With embeddings | 500ms-2s | OpenRouter embedding call |
-| Semantic search | 200-500ms | Embedding + similarity |
-
----
-
-*This architecture document reflects the Ingestion Service as of January 2026. For the latest updates, refer to the source code and README.*
