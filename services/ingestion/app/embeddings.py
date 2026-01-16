@@ -39,10 +39,11 @@ class MockEmbedder:
 
 
 @dataclass(frozen=True)
-class OpenAICompatibleEmbedder:
-    base_url: str
+class OpenRouterEmbedder:
+    """Embedder using OpenRouter API (for Qwen and other models)."""
     api_key: str
     model: str
+    base_url: str = "https://openrouter.ai/api/v1"
     timeout_s: float = 30.0
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
@@ -57,7 +58,6 @@ class OpenAICompatibleEmbedder:
         resp.raise_for_status()
         data = resp.json()
 
-        # OpenAI-style response: { data: [ { embedding: [...] }, ... ] }
         items = data.get("data")
         if not isinstance(items, list):
             raise RuntimeError("Unexpected embeddings response format")
@@ -79,29 +79,14 @@ def get_embedder(*, provider: str | None = None, model: str | None = None) -> Em
         dim = int(os.getenv("EMBEDDING_DIM", "64"))
         return MockEmbedder(dim=dim)
 
-    if provider in {"openai", "openrouter"}:
-        api_key = os.getenv("OPENAI_API_KEY") if provider == "openai" else os.getenv("OPENROUTER_API_KEY")
+    if provider == "openrouter":
+        api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            raise MissingEmbeddingAPIKeyError(
-                "Missing OPENAI_API_KEY" if provider == "openai" else "Missing OPENROUTER_API_KEY"
-            )
+            raise MissingEmbeddingAPIKeyError("Missing OPENROUTER_API_KEY")
 
-        base_url = os.getenv("OPENAI_BASE_URL")
-        if not base_url:
-            base_url = "https://api.openai.com/v1" if provider == "openai" else "https://openrouter.ai/api/v1"
+        base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        model_name = model or os.getenv("OPENROUTER_EMBED_MODEL", "qwen/qwen3-embedding-8b")
 
-        if model:
-            model_name = model
-        else:
-            model_name = (
-                os.getenv("OPENAI_EMBED_MODEL")
-                if provider == "openai"
-                else os.getenv("OPENROUTER_EMBED_MODEL")
-            ) or "qwen/qwen3-embedding-8b"
-        return OpenAICompatibleEmbedder(base_url=base_url, api_key=api_key, model=model_name)
+        return OpenRouterEmbedder(api_key=api_key, model=model_name, base_url=base_url)
 
-    if provider == "vertex":
-        # Placeholder: Vertex AI embeddings require GCP auth / SDK and project+location.
-        raise RuntimeError("EMBEDDING_PROVIDER=vertex not implemented yet; use mock or openai/openrouter")
-
-    raise RuntimeError(f"Unknown EMBEDDING_PROVIDER={provider}")
+    raise RuntimeError(f"Unknown EMBEDDING_PROVIDER={provider}; use 'mock' or 'openrouter'")
