@@ -129,19 +129,19 @@ For ingestion details (endpoints, env vars, troubleshooting), see [services/inge
 
 ## Available Scripts
 
-Run from the repo root with `pnpm <script>`:
+Run from the repo root:
 
-| Script | Description |
-|--------|-------------|
-| `dev:web` | Start Next.js web app (port 9002) |
-| `dev:ingestion` | Run ingestion API locally (requires Python) |
-| `docker:ingestion` | Run ingestion API in Docker |
-| `docker:ingestion:down` | Stop ingestion Docker container |
-| `build` | Build all packages |
-| `build:web` | Build only the web app |
-| `lint` | Lint all packages |
-| `test` | Run tests in all packages |
-| `emulators` | Start Firebase emulators |
-| `spec` | List OpenSpec items |
-| `spec:specs` | List OpenSpec specs only |
-| `spec:validate` | Validate OpenSpec files |
+| Command | Description |
+|---------|-------------|
+| `pnpm dev:web` | Start Next.js web app (port 9002) |
+| `pnpm dev:ingestion` | Run ingestion API locally (requires Python) |
+| `pnpm docker:ingestion` | Run ingestion API in Docker |
+| `pnpm docker:ingestion:down` | Stop ingestion Docker container |
+| `pnpm build` | Build all packages |
+| `pnpm build:web` | Build only the web app |
+| `pnpm lint` | Lint all packages |
+| `pnpm test` | Run tests in all packages |
+| `pnpm emulators` | Start Firebase emulators |
+| `pnpm spec` | List OpenSpec items |
+| `pnpm spec:specs` | List OpenSpec specs only |
+| `pnpm spec:validate` | Validate OpenSpec files |
