@@ -30,8 +30,8 @@ _LAST_CHUNKS: list[dict] = []
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allow_origins,
-    allow_credentials=True,
-    allow_methods=["*"] ,
+    allow_credentials=False,  # Must be False when using wildcard origins
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
