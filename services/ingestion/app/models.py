@@ -9,7 +9,6 @@ class ChunkRequest(BaseModel):
     include_preprocessing: bool = False
     include_embeddings: bool = False
     include_topics: bool = False
-    include_ranking: bool = False
 
     # Preprocessing
     preprocess_model: str | None = Field(
@@ -18,10 +17,6 @@ class ChunkRequest(BaseModel):
     )
 
     # Topics
-    topic_model: str | None = Field(
-        None,
-        description="Optional per-request topic model (e.g. gemini-2.5-flash-lite). If omitted, server default applies.",
-    )
     max_topics: int | None = Field(
         None,
         ge=1,

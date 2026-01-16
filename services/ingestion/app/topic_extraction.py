@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import re
-import logging
 from dataclasses import dataclass
 
 
@@ -142,7 +140,7 @@ class TopicExtractionResult:
     error: str | None = None
 
 
-def extract_topics(text: str, *, model: str | None = None, max_topics: int = 10) -> TopicExtractionResult:
+def extract_topics(text: str, *, max_topics: int = 10) -> TopicExtractionResult:
     """Extract topics using deterministic heuristic extraction."""
     return TopicExtractionResult(
         topics=heuristic_extract_topics(text, max_topics=max_topics),

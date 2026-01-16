@@ -89,16 +89,12 @@ def chunk(req: ChunkRequest):
     )
 
     if req.include_topics:
-        debug_topics = os.getenv("TOPIC_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
         max_topics = req.max_topics if req.max_topics is not None else int(os.getenv("TOPIC_MAX_TOPICS", "10"))
-        model = req.topic_model
 
         for c in chunks_raw:
             r = extract_topics(c["text"], max_topics=max_topics)
             c["topics"] = r.topics
             c["topic_source"] = r.source
-
-        # No fallback warnings needed - we always use heuristic now
 
     if req.include_embeddings:
         if len(chunks_raw) > settings.max_embed_chunks:

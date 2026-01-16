@@ -1140,7 +1140,6 @@ All configuration is done through environment variables, typically set in `.env`
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TOPIC_MAX_TOPICS` | `10` | Default max topics per chunk |
-| `TOPIC_DEBUG` | `false` | Enable debug logging |
 
 ### Settings Class
 
@@ -1336,7 +1335,7 @@ logger = logging.getLogger(__name__)
 | `INFO` | Request handling, processing steps |
 | `WARNING` | Fallbacks, non-critical issues |
 | `ERROR` | API failures, processing errors |
-| `DEBUG` | Detailed processing info (with `TOPIC_DEBUG=true`) |
+| `DEBUG` | Detailed processing info |
 
 ---
 
