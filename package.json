@@ -10,11 +10,7 @@
     "docker:ingestion:down": "cd services/ingestion && docker-compose down",
     "build": "pnpm run --recursive build",
     "build:web": "pnpm --filter web build",
-    "emulators": "firebase emulators:start",
-    "spec": "openspec list",
-    "spec:list": "openspec list",
-    "spec:specs": "openspec list --specs",
-    "spec:validate": "openspec validate"
+    "emulators": "firebase emulators:start"
   },
   "engines": {
     "node": ">=18.0.0",

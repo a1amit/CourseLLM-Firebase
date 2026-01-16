@@ -140,9 +140,6 @@ Run from the repo root:
 | `pnpm build` | Build all packages |
 | `pnpm build:web` | Build only the web app |
 | `pnpm emulators` | Start Firebase emulators |
-| `pnpm spec` | List OpenSpec items |
-| `pnpm spec:specs` | List OpenSpec specs only |
-| `pnpm spec:validate` | Validate OpenSpec files |
 
 ### Web App Scripts
 
