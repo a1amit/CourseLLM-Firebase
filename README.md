@@ -126,3 +126,22 @@ pnpm dev:web
 - Ingestion: container-based (Dockerfile in [services/ingestion/Dockerfile](services/ingestion/Dockerfile)), deployable to Cloud Run
 
 For ingestion details (endpoints, env vars, troubleshooting), see [services/ingestion/README.md](services/ingestion/README.md).
+
+## Available Scripts
+
+Run from the repo root with `pnpm <script>`:
+
+| Script | Description |
+|--------|-------------|
+| `dev:web` | Start Next.js web app (port 9002) |
+| `dev:ingestion` | Run ingestion API locally (requires Python) |
+| `docker:ingestion` | Run ingestion API in Docker |
+| `docker:ingestion:down` | Stop ingestion Docker container |
+| `build` | Build all packages |
+| `build:web` | Build only the web app |
+| `lint` | Lint all packages |
+| `test` | Run tests in all packages |
+| `emulators` | Start Firebase emulators |
+| `spec` | List OpenSpec items |
+| `spec:specs` | List OpenSpec specs only |
+| `spec:validate` | Validate OpenSpec files |
