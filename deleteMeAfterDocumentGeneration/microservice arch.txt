@@ -1,0 +1,141 @@
+The micro-services architecture is an approach to developing a single application as a suite of small services, each running in its own process and communicating with lightweight mechanisms, often an HTTP resource API. These services are built around business capabilities and can be deployed independently.
+
+Here are the core principles and aspects, illustrated by your AI-based learning system example.
+
+Core Principles of Micro-services
+1. Modularity and Separation of Concerns
+Principle: Each micro-service should focus on a single business capability (Separation of Concerns). 
+
+The code is organized around business domain components, and not technical layers (e.g., UI, service, persistence). This ensures high cohesion within a service and low coupling between services (Modularity).
+
+CourseLLM Example:
+
+The Authentication Service handles user login (OAuth).
+
+The Quiz/Database Service manages student data, skills, and learning trajectories.  It can be used to create new quizzes (automatically derived from existing material or manually posted by teachers), take quizzes, record quizzes and provide feedback and grades, record student learning trajectories based on quiz performance.
+
+The LLM Chatbot Service runs the core large language model logic.  It can be used to manage a student conversation with the chatbot, extract student analytics on the student.
+
+The Conversation Manager Service maintains the state and history of chat sessions.
+
+The Course Material Service manages the uploading and retrieval of course material, encoding of course material in markdown format, chunking of course material into topic-coherent units.
+
+The Content Search Service maintains an index over the course material, makes it searchable using full-text queries and semantic queries (using vector embeddings).  This service offers search and indexing functions.
+
+The Student Analytics Service maintains analytic information about students interactions with the system, provides summary information organized along specific dimensions (by student, by skill, by time etc).
+
+Benefit: A bug in the LLM Summarization Service won't bring down the Authentication Service or the Analytics Service.
+
+
+2. Coherence of APIs (REST and Documentation)
+Principle: Micro-services communicate over standard, lightweight protocols, most commonly REST (Representational State Transfer) via HTTP. APIs should be well-defined, stable, and follow a clear contract.
+
+Documentation: The importance of tools like OpenAPI Specification (Swagger) is paramount. It describes the service's API endpoints, request/response models, and expected behavior.
+
+AI Learning Example:
+
+The Quiz Service might expose a GET /students/{id}/quizzes endpoint.
+
+The Search Service might expose a POST /search/fulltext endpoint that takes a query and returns document IDs.
+
+The OpenAPI documentation for the Chatbot Service ensures the Conversation Manager knows exactly how to pass the current conversation context to the LLM.
+
+
+3. Independent Deployment and Hot Updates
+Principle: Services can be deployed, updated, and scaled independently without affecting other services. This allows for rapid, frequent, and low-risk deployments (Hot Updates). Teams can choose the best technology stack for each service (polyglot persistence/programming).
+
+Deployment Environment: A container-based runtime environment, such as Google Cloud Run or Kubernetes, is essential. It provides a standard unit of deployment (Docker container) that packages the code, dependencies, and configuration into immutable and coherent deployment units.
+
+AI Learning Example:
+
+The team can deploy a new, optimized BM25 Search Algorithm update to the Full Text Search Service while the Analytics Service and LLM Chatbot remain running on their current versions.
+
+The LLM Chatbot Service (which might require specific hardware like GPUs) can be built using Python, while the high-throughput Authorization Service might use a language like Go.
+
+
+4. Load Balancing and Scalability
+Principle: To handle varying traffic, instances of a service must be scaled up or down, and traffic must be distributed across them (Load Balancing). The architecture must support statelessness or shared-nothing architecture (where possible) for effective scaling.
+
+AI Learning Example:
+
+During peak study hours, multiple instances of the LLM Chatbot Service are automatically spun up (auto-scaling on Google Cloud Run) to handle thousands of concurrent student queries. A Load Balancer distributes the incoming requests equally among these instances.
+
+The Analytics Service might be scaled independently, as it only processes data asynchronously, unlike the real-time needs of the Chatbot.
+
+
+Testing and Validation
+Isolated Service Validation
+Principle: Due to the independence of services, each service must be validated in isolation. Unit tests and integration tests within the service boundary (e.g., ensuring the Quiz Service correctly saves a quiz score to its database) are critical.
+
+Integration and Acceptance Tests
+Principle: Once individual services are validated, Integration Tests are needed to ensure they work together correctly (e.g., verifying the Conversation Manager correctly calls the LLM Summarization Service). Acceptance Tests (or end-to-end tests) validate the overall system from the user's perspective, often using a Next/React frontend to simulate a user workflow (e.g., a student logs in, asks a question via the chatbot, and the conversation is persisted).
+
+
+Architectural Diagrams
+High-Level AI Learning System Micro-services Architecture
+This diagram illustrates how the Next/React Frontend (possibly hosted in a Firebase environment) communicates through a single entry point, an API Gateway (or Load Balancer), which then routes the requests to the appropriate containerized services running on Google Cloud Run.
+
+Data and Communication Flow (Chatbot Example)
+This flow shows a request's path:
+
+Frontend sends a request to the API Gateway.
+
+API Gateway sends it to the Conversation Manager.
+
+Conversation Manager calls the Authentication/Authorization Service to verify the user's token.
+
+Conversation Manager calls the LLM Chatbot Service with the current user's conversation history.
+
+LLM Chatbot Service generates a response and returns it.
+
+Conversation Manager updates the conversation state in the Database (persistence) and sends the final response back to the user.
+
+
+Architecture Diagram
+
+Eventually - the deployed application can be diagrammed in terms of architecture (which service invokes which APIs) and in terms of deployment (which concrete services are deployed according to which criteria).  Some of the services are provided by the runtime environment (in our case, Firebase and the Google Cloud services) and some by the components we will implement and deploy as part of the project.
+
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                           Frontend Layer                            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │   Web App   │  │  Mobile App │  │ Admin Panel │  │ Teacher App │ │
+│  │ (Next/React)│  │ (React Nat.)│  │ (Next/React)│  │ (Next/React)│ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                              │       │       │       │
+                              ▼       ▼       ▼       ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         API Gateway Layer                           │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                     API Gateway.                              │  │
+│  │  (Request routing, authentication, rate limiting, caching)    │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                              │       │       │       │
+                              ▼       ▼       ▼       ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│                      Microservices Layer                              │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐│
+│  │Auth &     │ │File       │ │Search     │ │LLM        │ │Learning   ││
+│  │Authz      │ │Storage    │ │Service    │ │Chatbot    │ │Data       ││
+│  └───────────┘ └───────────┘ └───────────┘ └───────────┘ └───────────┘│
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐│
+│  │Conversat. │ │Summarizat.│ │Analytics  │ │Quiz       │ │Notificat. ││
+│  │Manager    │ │Service    │ │Service    │ │Service    │ │Service    ││
+│  └───────────┘ └───────────┘ └───────────┘ └───────────┘ └───────────┘│
+└───────────────────────────────────────────────────────────────────────┘
+                              │       │       │       │
+                              ▼       ▼       ▼       ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│                        Data & Infrastructure                          │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐│
+│  │Vector     │ │Relational │ │Document   │ │Object     │ │Cache      ││
+│  │Database   │ │Database   │ │Database   │ │Storage    │ │(Redis)    ││
+│  └───────────┘ └───────────┘ └───────────┘ └───────────┘ └───────────┘│
+│  ┌───────────────────────────────────────────────────────────────┐    │
+│  │                    Third-Party Services                       │    │
+│  │ (LLM APIs, OAuth Providers, Email Service, Analytics Tools)   │    │
+│  └───────────────────────────────────────────────────────────────┘    │
+└───────────────────────────────────────────────────────────────────────┘
