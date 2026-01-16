@@ -154,6 +154,9 @@ cd apps/web
 
 | Command | Description |
 |---------|-------------|
-| `pnpm test:e2e` | Run Playwright end-to-end tests |
+| `pnpm test:e2e` | Run Playwright end-to-end tests — **requires emulators, local only** |
 | `pnpm test:env` | Run environment variable unit tests |
 | `pnpm typecheck` | Run TypeScript type checking |
+
+> [!NOTE]
+> **`pnpm test:e2e` requires Firebase emulators.** The e2e tests validate emulator connectivity and should only be run locally with `pnpm emulators` running. They will fail in GitHub Codespaces.
