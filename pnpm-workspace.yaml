@@ -1,3 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
 overrides:
-  '@dataconnect/generated': link:src/dataconnect-generated
-  '@dataconnect/admin-generated': link:src/dataconnect-admin-generated
+  '@dataconnect/admin-generated': link:apps/web/src/dataconnect-admin-generated
+  '@dataconnect/generated': link:apps/web/src/dataconnect-generated
+  dataconnect-admin-generated: link:C:/Users/Amit Abramovich/AppData/Local/pnpm/global/5/node_modules/src/dataconnect-admin-generated
+  dataconnect-generated: link:C:/Users/Amit Abramovich/AppData/Local/pnpm/global/5/node_modules/src/dataconnect-generated

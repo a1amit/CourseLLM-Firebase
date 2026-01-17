@@ -1,0 +1,25 @@
+services:
+  ingestion:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    environment:
+      - CORS_ALLOW_ORIGINS=*
+      - CHUNK_SIZE=450
+      - OVERLAP_SIZE=80
+      - TOKENIZER=word
+      - EMBEDDING_PROVIDER=sentence-transformers
+      - ST_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - ST_NORMALIZE=true
+      - MAX_EMBED_CHUNKS=256
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_EMBED_MODEL=${OPENROUTER_EMBED_MODEL}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY}
+      - PREPROCESS_ENABLED=${PREPROCESS_ENABLED:-false}
+      - PREPROCESS_MODEL=${PREPROCESS_MODEL:-google/gemma-3-27b-it:free}
+      - PREPROCESS_TIMEOUT_S=${PREPROCESS_TIMEOUT_S:-60}
+      - PREPROCESS_MAX_INPUT_CHARS=${PREPROCESS_MAX_INPUT_CHARS:-40000}
+      - OPENROUTER_HTTP_REFERER=${OPENROUTER_HTTP_REFERER}
+      - OPENROUTER_X_TITLE=${OPENROUTER_X_TITLE}

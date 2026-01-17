@@ -1,57 +1,225 @@
-# CourseLLM
+# CourseLLM Monorepo
 
-## Purpose
-CourseLLM (Coursewise) is an educational platform that leverages AI to provide personalized learning experiences. 
-It is intended for Undergraduate University Courses and is being tested on Computer Science courses.
+CourseLLM is a Firebase + Next.js application with a Python FastAPI ingestion service for chunking/embeddings/topics.
 
-To get started, take a look at src/app/page.tsx.
+New here? Start with [GETTING_STARTED.md](GETTING_STARTED.md).
 
-## 🧠 AI Features
+## Architecture
 
-### Context-Aware RAG Pipeline
+CourseLLM uses a **monorepo**: the Next.js frontend and Python micro-services live side-by-side in the same Git repository. This fits our Firebase-centric workflow where infrastructure, frontend, and backend need to evolve together.
 
-We have implemented an optimized Retrieval-Augmented Generation (RAG) pipeline designed for course materials (textbooks, lectures).
+### Monorepo vs multi-repo (why we chose monorepo)
 
-**The Problem:** Standard chunking loses context. A chunk saying "It uses a boolean flag" is useless without knowing it belongs to "Chapter 2 > While Loops".
+In a multi-repo setup, the web app and each micro-service live in separate repositories. That can work, but it tends to introduce friction for our stack:
 
-**Our Solution:**
-1.  **Hierarchical Chunking:** We parse Markdown headers to track the full path of every text chunk (e.g., `["Unit 1", "React", "Hooks"]`).
-2.  **AI Enrichment:** We use Gemini to generate metadata for each chunk:
-    *   **Summary:** One-sentence overview.
-    *   **Keywords:** For tag-based filtering.
-    *   **Hypothetical Questions:** Enables "Question-to-Question" semantic search.
-3.  **Smart Embedding:** We embed a rich context string (Title + Path + Summary + Content) rather than just raw text.
+- **Atomic changes**: a single PR can update a Python endpoint and the React code that calls it.
+- **Less version drift**: frontend and backend changes land together instead of “web expects v1.2, service runs v1.3”.
+- **Unified local environment**: one repo + one Firebase config to run emulators and connect both the web app and services consistently.
+- **Simpler integration contracts**: shared definitions (Firebase Data Connect schema, OpenAPI docs) can live in-repo and be reviewed alongside code.
 
-### 🧪 Testing the Pipeline
+Trade-off: monorepos require discipline around ownership and build performance. As the project grows, we can introduce a task-graph tool (e.g., Nx/Turborepo) to avoid rebuilding/retesting unrelated parts of the repo.
 
-**1. Configure Environment Variables**
-Create a `.env.local` file in the root directory (`CourseLLM-Firebase`) and add your Google Gemini API key. This is required for the AI enrichment features.
+### How the pieces fit
 
-```env
-GOOGLE_API_KEY=YOUR_API_KEY_HERE
+- **Frontend**: Next.js (React) app in `apps/web/`.
+- **Backend services**: containerized Python services in `services/*/` (today: `services/ingestion/`).
+- **Firebase context**: root-level `firebase.json`, rules, and Data Connect config provide a single source of truth for emulators and deployment.
+
+### Workflow & synchronization
+
+- Run Firebase emulators from the repo root so the web app and services share the same local Firebase context.
+- Use **Data Connect** for rich, schema-driven data services, and **OpenAPI** for other HTTP services (like ingestion).
+- Treat schema/API changes as “contracts”: update the backend and the frontend usage in the same PR whenever possible.
+
+## Repo layout
+
+```
+apps/web/                 Next.js app (port 9002)
+services/ingestion/       FastAPI ingestion service (port 8000)
+openspec/                 Specs + change proposals
+firebase.json             Firebase config (hosting/emulators)
 ```
 
-**2. Run the Chunking Logic Tests**
-Verify that the deterministic chunker correctly handles headers, nesting, and code blocks.
+## Prerequisites
+
+- Node.js 18+
+- pnpm 8+
+- Firebase CLI (`npm i -g firebase-tools`)
+- Docker Desktop (recommended for ingestion) or Python 3.11+
+
+## Local development
+
+### 1) Install deps
+
 ```bash
-npx tsx scripts/test-chunking.ts
+pnpm install
 ```
 
-**3. Test the Full AI Pipeline (Genkit UI)**
-1.  Start the Genkit server:
-    ```bash
-    npm run genkit:dev
-    ```
-2.  Open `http://localhost:4000`.
-3.  Click on the **Flows** menu item.
-4.  Select `optimizedIndexingFlow`.
-5.  Input sample Markdown to see the generated chunks, metadata, and vector embeddings.
+### 2) Configure env
 
-    **Example Input JSON:**
-    ```json
-    {
-      "courseId": "cs-101",
-      "documentTitle": "Introduction to AI",
-      "markdownContent": "# What is AI?\n\nArtificial Intelligence (AI) is the simulation of human intelligence processes by machines.\n\n## Key Concepts\n\n### Machine Learning\nMachine Learning (ML) is a subset of AI that provides systems the ability to automatically learn and improve from experience."
-    }
-    ```
+- Web app env: copy [apps/web/.env.example](apps/web/.env.example) → `apps/web/.env.local`
+- Ingestion env (server-only secrets): copy [services/ingestion/.env.example](services/ingestion/.env.example) → `services/ingestion/.env`
+
+> [!IMPORTANT]
+> Each env file must have the exact name shown (`apps/web/.env.local` is `.env.local` and `services/ingestion/.env` is `.env`).
+
+Notes:
+- The web app reads the ingestion base URL from `NEXT_PUBLIC_INGESTION_URL` (preferred) or `NEXT_PUBLIC_API_URL` (legacy).
+- Do not put server secrets behind `NEXT_PUBLIC_*`.
+- **Ingestion service**: Use the `.env` file (not shell exports). Docker Compose reads directly from the file; shell exports are not reliably passed to containers.
+
+### 3) Run services
+
+Terminal 1 (Firebase emulators):
+
+> [!IMPORTANT]
+> **Skip this step if running on GitHub Codespaces.** The emulators are not needed when connecting to the production Firebase project.
+
+```bash
+pnpm emulators
+# or: firebase emulators:start
+```
+
+Terminal 2 (Ingestion):
+
+> [!IMPORTANT]
+> **GitHub Codespaces users:** After starting the ingestion service, you must set **port 8000 to Public** in the Ports panel for CORS to work correctly.
+
+```bash
+pnpm docker:ingestion
+# or: cd services/ingestion && docker compose up --build
+```
+
+Terminal 3 (Web):
+
+> [!IMPORTANT]
+> **GitHub Codespaces users:** You must add your Codespace domain to Firebase's authorized domains list for authentication to work.
+> 1. Go to **Firebase Console** → **Authentication** → **Settings** → **Authorized domains**
+> 2. Add your Codespace domain (e.g., `your-codespace-name-9002.app.github.dev`)
+> 3. Find your domain by navigating to `/login` in your Codespace browser (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/login` for example)
+
+```bash
+pnpm dev:web
+# or: cd apps/web && pnpm dev
+```
+
+### URLs
+
+- Web app: http://localhost:9002
+- Ingestion API: http://localhost:8000 (Swagger: http://localhost:8000/docs)
+- Chunking Lab: http://localhost:9002/debug/chunking (requires login)
+- Service Monitor: http://localhost:9002/debug/monitoring (requires login)
+
+> [!NOTE]
+> **GitHub Codespaces users:** Replace `localhost:9002` with your Codespace URL (e.g., `https://bug-free-tribble-j9466xx6g7gc7x5-9002.app.github.dev/debug/chunking`)
+
+## GitHub Codespaces & Firebase Emulators
+
+> [!CAUTION]
+> **Firebase Firestore emulator does not work** when using Codespaces through the browser. This is a fundamental limitation—browser-based Codespaces force HTTPS for all port forwarding, but the Firestore emulator uses WebChannel which requires HTTP.
+
+### Workarounds
+
+1. **Use VS Code Desktop** - Connect to your Codespace from the VS Code Desktop app instead of the browser. This allows proper `localhost` port forwarding.
+
+2. **Use `gh cs ports forward`** - On your **local machine** terminal:
+   ```bash
+   gh cs ports forward 8080:8080 9099:9099 -c <your-codespace-name>
+   ```
+   Then access the app via your local browser at `localhost:9002`.
+
+3. **Disable emulators in Codespaces** - Use production Firebase instead:
+   ```bash
+   # In apps/web/.env.local
+   NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false
+   ```
+
+4. **Develop locally** - Run emulators on your local machine for full emulator support.
+
+**Recommendation:** For quick testing in Codespaces, use option 3 (production Firebase). For development requiring emulators, work locally or use VS Code Desktop with your Codespace.
+
+For more context, see [GitHub Community Discussion #42879](https://github.com/orgs/community/discussions/42879).
+
+## What’s in the Chunking Lab
+
+- Markdown chunking with section path metadata
+- Optional LLM preprocessing (OpenRouter Gemma 3 27b)
+- Optional embeddings (OpenRouter qwen3-embedding-8b)
+- Optional topic extraction (deterministic heuristic)
+- Semantic search (dev-only, searches the most recent chunking run using cosine similarity)
+
+## Deployment (high level)
+
+- Web: Firebase Hosting
+- Ingestion: container-based (Dockerfile in [services/ingestion/Dockerfile](services/ingestion/Dockerfile)), deployable to Cloud Run
+
+For ingestion details (endpoints, env vars, troubleshooting), see [services/ingestion/README.md](services/ingestion/README.md).
+
+## Available Scripts
+
+Run from the repo root:
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev:web` | Start Next.js web app (port 9002) |
+| `pnpm dev:ingestion` | Run ingestion API locally (requires Python) — **local only** |
+| `pnpm docker:ingestion` | Run ingestion API in Docker |
+| `pnpm docker:ingestion:down` | Stop ingestion Docker container |
+| `pnpm build` | Build all packages |
+| `pnpm build:web` | Build only the web app |
+| `pnpm emulators` | Start Firebase emulators — **local only** |
+| `pnpm test:api` | Run backend API tests (pytest) — **requires Python** |
+
+> [!IMPORTANT]
+> **Before running `pnpm test:api`**, install Python dependencies:
+> ```bash
+> cd services/ingestion
+> pip install -r requirements.txt
+> ```
+
+> [!NOTE]
+> **GitHub Codespaces users:** Commands marked with "local only" should not be run in Codespaces. Use `pnpm docker:ingestion` for the ingestion service and skip the emulators (connect to production Firebase instead).
+
+### Web App Scripts
+
+Run from `apps/web`:
+
+```bash
+cd apps/web
+```
+
+| Command | Description |
+|---------|-------------|
+| `pnpm test:e2e` | Run Playwright end-to-end tests |
+| `pnpm test:unit` | Run unit tests for Chunking component with mocked API (fast, no backend required) |
+| `pnpm test:env` | Run environment variable unit tests |
+| `pnpm typecheck` | Run TypeScript type checking |
+
+> [!IMPORTANT]
+> **Before running `pnpm test:e2e` for the first time**, install Playwright browsers:
+> ```bash
+> pnpm exec playwright install --with-deps
+> ```
+> Also set in `apps/web/.env.local`:
+> ```
+> NEXT_PUBLIC_ALLOW_UNAUTHENTICATED_DEBUG=true
+> ```
+
+> [!NOTE]
+> **`pnpm test:api` runs from the repo root**, not from `apps/web`.
+
+## Dependencies
+
+For detailed dependency lists with versions, see:
+
+- **Web app:** [apps/web/README.md](apps/web/README.md#dependencies) — Next.js ^15.5.7, React ^18.3.1, Firebase ^11.9.1, Genkit ^1.20.0, and more
+- **Ingestion service:** [services/ingestion/README.md](services/ingestion/README.md#dependencies) — FastAPI 0.115.6, Pydantic 2.10.3, Chonkie 1.4.2
+
+### Runtime Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Node.js | ≥18.0.0 |
+| pnpm | ≥8.0.0 |
+| Python (ingestion) | ≥3.11 |
+| Docker | Recommended for ingestion |

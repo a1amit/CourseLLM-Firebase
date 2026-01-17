@@ -1,5 +1,9 @@
 # Project Context
 
+> **📋 Note**: This document provides comprehensive project context. For quick start and current setup instructions, see:
+> - **[GETTING_STARTED.md](../GETTING_STARTED.md)** - User onboarding guide
+> - **[README.md](../README.md)** - Developer documentation with monorepo structure
+
 ## Purpose
 CourseLLM-Firebase (Coursewise) is an educational platform that leverages AI to provide personalized learning experiences. The project provides role-based dashboards for students and teachers, integrated authentication via Firebase, and AI-powered course assessment and tutoring via Google Genkit. The core goals are to:
 - Enable personalized learning assessment and recommendations
@@ -8,16 +12,25 @@ CourseLLM-Firebase (Coursewise) is an educational platform that leverages AI to 
 - Ensure secure, role-based access control
 
 ## Tech Stack
+- **Project Structure**: Monorepo with apps/ and services/ separation
 - **Frontend Framework**: Next.js 15 with React 18 (TypeScript)
 - **Styling**: Tailwind CSS with Radix UI components
-- **Backend/Functions**: Firebase Cloud Functions, Firebase Admin SDK
+- **Backend Services**:
+  - **Ingestion Service**: Python FastAPI (chunking, embeddings, file parsing)
+  - **Firebase Cloud Functions**: Serverless functions
+  - **Firebase Admin SDK**: Server-side operations
 - **Database**: Firestore (NoSQL document database)
 - **Authentication**: Firebase Authentication (Google OAuth)
-- **AI/ML**: Google Genkit 1.20.0 with Google GenAI models (default: gemini-2.5-flash)
+- **AI/ML**: 
+  - Google Genkit 1.20.0 with Google GenAI models (default: gemini-2.5-flash)
+  - Sentence Transformers for local embeddings
+  - Vertex AI for production embeddings
+- **Text Processing**: Chonkie for semantic chunking
 - **Data**: Firebase DataConnect (GraphQL layer over Firestore)
+- **Containerization**: Docker & docker-compose for local development
 - **Testing**: Playwright for E2E tests
 - **Dev Tools**: TypeScript 5, pnpm workspace, Node.js
-- **Deployment**: Firebase Hosting, App Hosting
+- **Deployment**: Firebase Hosting, App Hosting, Google Cloud Run
 
 ## Project Conventions
 
@@ -57,16 +70,31 @@ CourseLLM-Firebase (Coursewise) is an educational platform that leverages AI to 
   - Firestore security rules enforce role-based access
 - **File Structure**:
   ```
-  src/
-    app/          → Next.js pages and layouts
-    components/   → Reusable React components
-    lib/          → Utilities, auth, firebase init, types
-    ai/           → Genkit flows and model config
-    dataconnect-generated/  → Auto-generated DataConnect types
-  functions/    → Firebase Cloud Functions
-  dataconnect/  → DataConnect schema and queries
-  tests/        → Playwright E2E tests
-  docs/         → Documentation (auth implementation, PRD, etc.)
+  / (monorepo root)
+    apps/
+      web/          → Next.js application
+        src/
+          app/          → Next.js pages and layouts
+          components/   → Reusable React components
+          lib/          → Utilities, auth, firebase init, types
+          ai/           → Genkit flows and model config
+          dataconnect-generated/  → Auto-generated DataConnect types
+        tests/        → Playwright E2E tests
+        .env.local    → Next.js environment variables (GOOGLE_API_KEY)
+    services/
+      ingestion/    → Python FastAPI service
+        app/
+          main.py       → API endpoints
+          chunker.py    → Chonkie integration
+          embeddings.py → Dual-provider embeddings
+          schemas.py    → Pydantic models
+        Dockerfile        → Container configuration
+        docker-compose.yml
+        requirements.txt
+    .env.local      → Root environment (Firebase emulators)
+    functions/      → Firebase Cloud Functions
+    dataconnect/    → DataConnect schema and queries
+    docs/           → Documentation
   ```
 
 ### Testing Strategy
