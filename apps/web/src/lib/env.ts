@@ -42,6 +42,7 @@ const serverEnvSchema = z.object({
  */
 const emulatorEnvSchema = z.object({
   NEXT_PUBLIC_USE_FIREBASE_EMULATORS: z.enum(["true", "false"]).optional().default("false"),
+  NEXT_PUBLIC_ALLOW_UNAUTHENTICATED_DEBUG: z.enum(["true", "false"]).optional().default("false"),
   FIREBASE_AUTH_EMULATOR_HOST: z.string().optional(),
   FIRESTORE_EMULATOR_HOST: z.string().optional(),
   FIREBASE_STORAGE_EMULATOR_HOST: z.string().optional(),
@@ -150,6 +151,7 @@ function getServerEnv() {
 function getEmulatorEnv() {
   return parseEnv(emulatorEnvSchema, {
     NEXT_PUBLIC_USE_FIREBASE_EMULATORS: process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS,
+    NEXT_PUBLIC_ALLOW_UNAUTHENTICATED_DEBUG: process.env.NEXT_PUBLIC_ALLOW_UNAUTHENTICATED_DEBUG,
     FIREBASE_AUTH_EMULATOR_HOST: process.env.FIREBASE_AUTH_EMULATOR_HOST,
     FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST,
     FIREBASE_STORAGE_EMULATOR_HOST: process.env.FIREBASE_STORAGE_EMULATOR_HOST,
@@ -176,4 +178,12 @@ export function shouldUseEmulators(): boolean {
 export function getEmulatorUrl(service: keyof typeof EMULATOR_CONFIG): string {
   const config = EMULATOR_CONFIG[service];
   return `http://${config.host}:${config.port}`;
+}
+
+/**
+ * Helper to check if debug pages should allow unauthenticated access
+ * This is useful for E2E testing without emulators
+ */
+export function shouldAllowUnauthenticatedDebug(): boolean {
+  return emulatorEnv.NEXT_PUBLIC_ALLOW_UNAUTHENTICATED_DEBUG === "true";
 }

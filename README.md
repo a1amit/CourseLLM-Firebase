@@ -168,6 +168,7 @@ Run from the repo root:
 | `pnpm build` | Build all packages |
 | `pnpm build:web` | Build only the web app |
 | `pnpm emulators` | Start Firebase emulators — **local only** |
+| `pnpm test:api` | Run backend API tests (pytest) — **requires Python** |
 
 > [!NOTE]
 > **GitHub Codespaces users:** Commands marked with "local only" should not be run in Codespaces. Use `pnpm docker:ingestion` for the ingestion service and skip the emulators (connect to production Firebase instead).
@@ -182,12 +183,19 @@ cd apps/web
 
 | Command | Description |
 |---------|-------------|
-| `pnpm test:e2e` | Run Playwright end-to-end tests — **requires emulators, local only** |
+| `pnpm test:e2e` | Run Playwright end-to-end tests |
+| `pnpm test:unit` | Run unit tests for Chunking component with mocked API (fast, no backend required) |
 | `pnpm test:env` | Run environment variable unit tests |
 | `pnpm typecheck` | Run TypeScript type checking |
 
+> [!IMPORTANT]
+> **Before running `pnpm test:e2e` for the first time**, install Playwright browsers:
+> ```bash
+> pnpm exec playwright install --with-deps
+> ```
+
 > [!NOTE]
-> **`pnpm test:e2e` requires Firebase emulators.** The e2e tests validate emulator connectivity and should only be run locally with `pnpm emulators` running. They will fail in GitHub Codespaces.
+> **`pnpm test:api` runs from the repo root**, not from `apps/web`.
 
 ## Dependencies
 

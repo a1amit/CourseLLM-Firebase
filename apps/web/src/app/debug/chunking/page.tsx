@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { shouldAllowUnauthenticatedDebug } from "@/lib/env";
 import ChunkingPreview from "@/components/ChunkingPreview";
 
 export default function ChunkingDebugPage() {
@@ -10,7 +11,16 @@ export default function ChunkingDebugPage() {
     const router = useRouter();
     const [isAuthorized, setIsAuthorized] = useState(false);
 
+    // Check if unauthenticated debug access is allowed (for E2E testing)
+    const allowUnauthenticated = shouldAllowUnauthenticatedDebug();
+
     useEffect(() => {
+        // If unauthenticated debug is allowed, skip auth check
+        if (allowUnauthenticated) {
+            setIsAuthorized(true);
+            return;
+        }
+
         if (!loading) {
             if (!user) {
                 // Redirect to login if not authenticated
@@ -19,10 +29,10 @@ export default function ChunkingDebugPage() {
                 setIsAuthorized(true);
             }
         }
-    }, [user, loading, router]);
+    }, [user, loading, router, allowUnauthenticated]);
 
-    // Show loading state while checking auth
-    if (loading) {
+    // Show loading state while checking auth (skip if unauthenticated access allowed)
+    if (!allowUnauthenticated && loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">
