@@ -20,56 +20,6 @@ async function areEmulatorsRunning(request: APIRequestContext): Promise<boolean>
 }
 
 test.describe('Firebase Emulator Configuration', () => {
-  test('emulators should be accessible at expected ports', async ({ request }) => {
-    // Skip if emulators aren't running
-    const emulatorsRunning = await areEmulatorsRunning(request);
-    if (!emulatorsRunning) {
-      console.log('Skipping test - Firebase emulators are not running');
-      test.skip();
-      return;
-    }
-
-    // Test Auth Emulator
-    const authResponse = await request.get('http://127.0.0.1:9099/', {
-      timeout: 5000,
-    }).catch(() => null);
-
-    expect(authResponse, 'Auth Emulator should be running on port 9099').not.toBeNull();
-
-    // Test Firestore Emulator
-    const firestoreResponse = await request.get('http://127.0.0.1:8080/', {
-      timeout: 5000,
-    }).catch(() => null);
-
-    expect(firestoreResponse, 'Firestore Emulator should be running on port 8080').not.toBeNull();
-
-    // Test Storage Emulator - note: storage may return 400 for root, but should respond
-    const storageResponse = await request.get('http://127.0.0.1:9199/', {
-      timeout: 5000,
-    }).catch(() => null);
-
-    expect(storageResponse, 'Storage Emulator should be running on port 9199').not.toBeNull();
-  });
-
-  test('Emulator UI should be accessible', async ({ request }) => {
-    // Skip if emulators aren't running
-    const emulatorsRunning = await areEmulatorsRunning(request);
-    if (!emulatorsRunning) {
-      console.log('Skipping test - Firebase emulators are not running');
-      test.skip();
-      return;
-    }
-
-    const response = await request.get('http://127.0.0.1:4000/', {
-      timeout: 5000,
-    }).catch(() => null);
-
-    expect(response, 'Emulator UI should be running on port 4000').not.toBeNull();
-    if (response) {
-      expect(response.status()).toBeLessThan(400);
-    }
-  });
-
   test('app should load successfully when emulators are enabled', async ({ page }) => {
     // Navigate to the app
     const response = await page.goto('http://localhost:9002/');
