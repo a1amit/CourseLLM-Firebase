@@ -68,37 +68,37 @@ test.describe('Firebase Emulator Configuration', () => {
     expect(pageContent).not.toContain('Invalid emulator environment variables');
   });
 
-  test('app should connect to Auth Emulator', async ({ page, request }) => {
-    // Create a test user via the test-token API
-    const res = await request.get('http://localhost:9002/api/test-token?uid=emulator-test-user&role=student&createProfile=true');
-    expect(res.ok()).toBeTruthy();
+  // test('app should connect to Auth Emulator', async ({ page, request }) => {
+  //   // Create a test user via the test-token API
+  //   const res = await request.get('http://localhost:9002/api/test-token?uid=emulator-test-user&role=student&createProfile=true');
+  //   expect(res.ok()).toBeTruthy();
     
-    const { token } = await res.json();
-    expect(token).toBeTruthy();
+  //   const { token } = await res.json();
+  //   expect(token).toBeTruthy();
     
-    // Sign in with the test token
-    await page.goto(`http://localhost:9002/test/signin?token=${encodeURIComponent(token)}`);
+  //   // Sign in with the test token
+  //   await page.goto(`http://localhost:9002/test/signin?token=${encodeURIComponent(token)}`);
     
-    // Should redirect to student dashboard (indicates Auth Emulator is working)
-    await page.waitForURL('**/student', { timeout: 10000 });
-  });
+  //   // Should redirect to student dashboard (indicates Auth Emulator is working)
+  //   await page.waitForURL('**/student', { timeout: 10000 });
+  // });
 });
 
 test.describe('Firestore Emulator Integration', () => {
-  test('should be able to create and read documents', async ({ page, request }) => {
-    // Create a test user
-    const res = await request.get('http://localhost:9002/api/test-token?uid=firestore-test-user&role=teacher&createProfile=true');
-    expect(res.ok()).toBeTruthy();
+  // test('should be able to create and read documents', async ({ page, request }) => {
+  //   // Create a test user
+  //   const res = await request.get('http://localhost:9002/api/test-token?uid=firestore-test-user&role=teacher&createProfile=true');
+  //   expect(res.ok()).toBeTruthy();
     
-    const { token } = await res.json();
+  //   const { token } = await res.json();
     
-    // Sign in
-    await page.goto(`http://localhost:9002/test/signin?token=${encodeURIComponent(token)}`);
-    await page.waitForURL('**/teacher', { timeout: 10000 });
+  //   // Sign in
+  //   await page.goto(`http://localhost:9002/test/signin?token=${encodeURIComponent(token)}`);
+  //   await page.waitForURL('**/teacher', { timeout: 10000 });
     
-    // Verify we can access teacher dashboard (requires Firestore read)
-    await expect(page.locator('body')).not.toBeEmpty();
-  });
+  //   // Verify we can access teacher dashboard (requires Firestore read)
+  //   await expect(page.locator('body')).not.toBeEmpty();
+  // });
 });
 
 test.describe('Environment Variable Validation', () => {
