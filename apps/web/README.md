@@ -77,7 +77,8 @@ pnpm dev
 ## Useful scripts
 
 - `pnpm typecheck` — TypeScript type checking
-- `pnpm test:e2e` — Playwright end-to-end tests (requires emulators)
+- `pnpm test:unit` — Run unit tests for Chunking component with mocked API (fast, no backend required)
+- `pnpm test:e2e` — Playwright end-to-end tests (requires emulators and running dev server)
 - `pnpm test:env` — Environment variable unit tests
 
 ## Dependencies

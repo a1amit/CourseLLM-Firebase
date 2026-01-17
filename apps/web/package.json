@@ -7,8 +7,10 @@
     "dev": "next dev -p 9002",
     "test:e2e": "playwright test",
     "test:env": "npx tsx tests/env.unit.test.ts",
+    "test:unit": "jest src/components/ChunkingPreview.test.tsx",
     "build": "next build",
     "start": "next start",
+    "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
