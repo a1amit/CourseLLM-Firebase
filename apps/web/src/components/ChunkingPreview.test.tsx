@@ -162,13 +162,15 @@ Machine learning is a subset of artificial intelligence.
 
   test('should validate mock API response against schema', () => {
     // Simple schema validation
-    const isValidResponse = (response) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isValidResponse = (response: any) => {
       return (
         response &&
         typeof response.chunk_count === 'number' &&
         Array.isArray(response.chunks) &&
         response.chunks.every(
-          (chunk) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (chunk: any) =>
             typeof chunk.index === 'number' &&
             typeof chunk.text === 'string' &&
             typeof chunk.token_count === 'number'
@@ -182,7 +184,7 @@ Machine learning is a subset of artificial intelligence.
   test('should support batch processing of multiple documents', () => {
     const documents = [testMarkdown, '# Another Doc\n\nSome content'];
     expect(documents.length).toBe(2);
-    
+
     const batchResults = documents.map(() => mockChunkResponse);
     expect(batchResults.length).toBe(2);
   });
