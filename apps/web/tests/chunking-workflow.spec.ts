@@ -2,29 +2,30 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Chunking Workflow E2E', () => {
   test.beforeEach(async ({ page, request, context }) => {
-    // First, authenticate using test-token endpoint
+    // Try to authenticate using test-token endpoint
     const res = await request.get('http://localhost:9002/api/test-token?uid=test-chunking-user&createProfile=false');
-    if (!res.ok()) {
-      console.warn('Failed to get test token:', await res.text());
-      test.skip();
-      return;
-    }
-    const data = await res.json();
-    const token = data.token;
 
-    // Sign in with the token first - this sets up auth state
-    await page.goto(
-      `http://localhost:9002/test/signin?token=${encodeURIComponent(token)}`,
-      { waitUntil: 'load' }
-    );
-    
-    // Wait for the signin page to complete the auth process
-    // It redirects to /login after signin completes
-    await page.waitForURL('**/login', { timeout: 5000 }).catch(() => null);
-    
-    // Now navigate directly to chunking page - auth should be in context
+    if (res.ok()) {
+      // Auth is available - use it
+      const data = await res.json();
+      const token = data.token;
+
+      // Sign in with the token first - this sets up auth state
+      await page.goto(
+        `http://localhost:9002/test/signin?token=${encodeURIComponent(token)}`,
+        { waitUntil: 'load' }
+      );
+
+      // Wait for the signin page to complete the auth process
+      await page.waitForURL('**/login', { timeout: 5000 }).catch(() => null);
+    } else {
+      // Auth not available - skip auth, try direct navigation
+      console.log('Test auth not available, attempting direct navigation to chunking page');
+    }
+
+    // Navigate to chunking page (may work without auth for debug pages)
     await page.goto('http://localhost:9002/debug/chunking', { waitUntil: 'load' });
-    
+
     // Wait for textarea to appear (it's in the ChunkingPreview component)
     await page.locator('textarea').first().waitFor({ timeout: 5000 }).catch(() => null);
   });
@@ -33,15 +34,15 @@ test.describe('Chunking Workflow E2E', () => {
     // Wait for the page to load and check if the page has content
     const body = page.locator('body');
     await expect(body).toBeVisible();
-    
+
     // The page should have either a textarea or an input field for markdown
     const textarea = page.locator('textarea').first();
     const input = page.locator('input[type="text"]').first();
-    
+
     // At least one should exist
     const hasTextarea = await textarea.isVisible().catch(() => false);
     const hasInput = await input.isVisible().catch(() => false);
-    
+
     expect(hasTextarea || hasInput).toBeTruthy();
   });
 
@@ -60,7 +61,7 @@ Machine learning is a subset of AI.
     // Try to find and fill textarea/input
     const textarea = page.locator('textarea').first();
     const input = page.locator('input[type="text"]').first();
-    
+
     const hasTextarea = await textarea.isVisible().catch(() => false);
     if (hasTextarea) {
       await textarea.fill(markdown);
@@ -122,7 +123,7 @@ Machine learning is a subset of AI.
   test('should show error for empty input', async ({ page }) => {
     const submitButton = page.locator('button').filter({ hasText: /chunk|submit|process/i }).first();
     const visible = await submitButton.isVisible().catch(() => false);
-    
+
     if (!visible) {
       test.skip();
       return;
@@ -130,11 +131,11 @@ Machine learning is a subset of AI.
 
     // Try clicking without input
     await submitButton.click();
-    
+
     // Check for error or success
     const errorMsg = page.locator('[data-testid="error"], .error').first();
     const hasError = await errorMsg.isVisible({ timeout: 3000 }).catch(() => false);
-    
+
     expect(hasError || true).toBeTruthy(); // Either error or no error is acceptable
   });
 
@@ -148,7 +149,7 @@ Deep Learning uses neural networks.
     // Fill markdown
     const textarea = page.locator('textarea').first();
     const hasTextarea = await textarea.isVisible().catch(() => false);
-    
+
     if (!hasTextarea) {
       test.skip();
       return;
@@ -182,7 +183,7 @@ Deep Learning uses neural networks.
 
     const textarea = page.locator('textarea').first();
     const hasTextarea = await textarea.isVisible().catch(() => false);
-    
+
     if (!hasTextarea) {
       test.skip();
       return;
@@ -210,7 +211,7 @@ More content here to have substantial text for chunking.
 
     const textarea = page.locator('textarea').first();
     const hasTextarea = await textarea.isVisible().catch(() => false);
-    
+
     if (!hasTextarea) {
       test.skip();
       return;
@@ -256,12 +257,12 @@ Information about neural networks.
     const submitButton = page.locator('button').filter({ hasText: /chunk|submit|process/i }).first();
     const btnVisible = await submitButton.isVisible().catch(() => false);
     expect(btnVisible).toBeTruthy();
-    
+
     await submitButton.click();
-    
+
     // Step 4: Wait for results
     await page.waitForTimeout(2000).catch(() => null);
-    
+
     // Step 5: Verify workflow completed by checking for any results
     const resultSelectors = [
       '[data-testid="chunks-container"]',
