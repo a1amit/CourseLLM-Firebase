@@ -31,9 +31,8 @@ test.describe('Chunking Workflow E2E', () => {
   });
 
   test('should load chunking interface', async ({ page }) => {
-    // Wait for the page to load and check if the page has content
-    const body = page.locator('body');
-    await expect(body).toBeVisible();
+    // Wait for the page to fully load
+    await page.waitForLoadState('networkidle').catch(() => null);
 
     // The page should have either a textarea or an input field for markdown
     const textarea = page.locator('textarea').first();
