@@ -193,6 +193,10 @@ cd apps/web
 > ```bash
 > pnpm exec playwright install --with-deps
 > ```
+> Also set in `apps/web/.env.local`:
+> ```
+> NEXT_PUBLIC_ALLOW_UNAUTHENTICATED_DEBUG=true
+> ```
 
 > [!NOTE]
 > **`pnpm test:api` runs from the repo root**, not from `apps/web`.
