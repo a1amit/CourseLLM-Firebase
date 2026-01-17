@@ -170,6 +170,13 @@ Run from the repo root:
 | `pnpm emulators` | Start Firebase emulators — **local only** |
 | `pnpm test:api` | Run backend API tests (pytest) — **requires Python** |
 
+> [!IMPORTANT]
+> **Before running `pnpm test:api`**, install Python dependencies:
+> ```bash
+> cd services/ingestion
+> pip install -r requirements.txt
+> ```
+
 > [!NOTE]
 > **GitHub Codespaces users:** Commands marked with "local only" should not be run in Codespaces. Use `pnpm docker:ingestion` for the ingestion service and skip the emulators (connect to production Firebase instead).
 
