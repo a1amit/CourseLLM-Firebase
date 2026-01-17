@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "patch-package",
     "dev": "next dev -p 9002",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --config=tests/playwright.config.ts",
     "test:env": "npx tsx tests/env.unit.test.ts",
     "test:unit": "jest src/components/ChunkingPreview.test.tsx",
     "build": "next build",
