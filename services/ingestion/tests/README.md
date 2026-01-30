@@ -57,7 +57,19 @@ pip install -r requirements.txt
 ### Run All Tests
 
 ```bash
-pytest
+PYTHONPATH=. pytest tests/ -v
+```
+
+### Run E2E Pipeline Test
+
+The E2E test demonstrates the complete **ingest → chunk → search** workflow:
+
+```bash
+# Run E2E pipeline test with verbose output
+PYTHONPATH=. pytest tests/test_e2e_pipeline.py -v -s
+
+# Run with a custom input file
+TEST_FILE=/path/to/your/document.md PYTHONPATH=. pytest tests/test_e2e_pipeline.py::TestE2EWithRealFile -v -s
 ```
 
 ### Run Specific Test File
@@ -81,7 +93,10 @@ pytest tests/test_chunk.py::TestChunkBasic::test_chunk_success_minimal -v
 ### Run with Coverage
 
 ```bash
-pytest --cov=app --cov-report=html
+PYTHONPATH=. pytest tests/ --cov=app --cov-report=term-missing
+
+# Generate HTML coverage report
+PYTHONPATH=. pytest tests/ --cov=app --cov-report=html
 ```
 
 ## Test Coverage

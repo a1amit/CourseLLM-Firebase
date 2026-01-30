@@ -11,14 +11,16 @@
     "build": "pnpm run --recursive build",
     "build:web": "pnpm --filter web build",
     "emulators": "firebase emulators:start",
-    "test:api": "cd services/ingestion && PYTHONPATH=. pytest tests/ -v"
+    "test:api": "cd services/ingestion && PYTHONPATH=. pytest tests/ -v",
+    "test:api:cov": "cd services/ingestion && PYTHONPATH=. pytest tests/ -v --cov=app --cov-report=term-missing",
+    "test:e2e:api": "cd services/ingestion && PYTHONPATH=. pytest tests/test_e2e_pipeline.py -v -s"
   },
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
   "dependencies": {
-    "dataconnect-admin-generated": "link:C:/Users/Amit Abramovich/AppData/Local/pnpm/global/5/node_modules/src/dataconnect-admin-generated",
-    "dataconnect-generated": "link:C:/Users/Amit Abramovich/AppData/Local/pnpm/global/5/node_modules/src/dataconnect-generated"
+    "dataconnect-admin-generated": "link:src/dataconnect-admin-generated",
+    "dataconnect-generated": "link:src/dataconnect-generated"
   }
 }
